@@ -388,3 +388,218 @@ body {
   color: var(--text-dim);
   border-color: rgba(255, 255, 255, 0.05);
 }
+
+/* ============================================
+   Candidate Detail Page Styles
+   ============================================ */
+
+/* Glass Panel */
+.glass-panel {
+  background: rgba(10, 10, 10, 0.6);
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(0, 255, 255, 0.2);
+}
+
+/* Corner Brackets */
+.corner-brackets {
+  position: relative;
+}
+
+.corner-brackets::before,
+.corner-brackets::after {
+  content: '';
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-color: var(--primary);
+  border-style: solid;
+  transition: all 0.3s ease;
+}
+
+.corner-brackets::before {
+  top: -1px;
+  left: -1px;
+  border-width: 1px 0 0 1px;
+}
+
+.corner-brackets::after {
+  bottom: -1px;
+  right: -1px;
+  border-width: 0 1px 1px 0;
+}
+
+.corner-brackets:hover::before,
+.corner-brackets:hover::after {
+  width: 100%;
+  height: 100%;
+  opacity: 0.1;
+}
+
+/* Text Glow Variants */
+.text-glow-green {
+  text-shadow: 0 0 5px rgba(0, 255, 65, 0.5);
+}
+
+.text-glow-red {
+  text-shadow: 0 0 5px rgba(255, 51, 51, 0.5);
+}
+
+.text-glow-amber {
+  text-shadow: 0 0 5px rgba(255, 204, 0, 0.5);
+}
+
+/* Cursor Animation */
+@keyframes cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.cursor {
+  display: inline-block;
+  width: 8px;
+  height: 1em;
+  background-color: var(--primary);
+  animation: cursor-blink 1s step-end infinite;
+  vertical-align: text-bottom;
+}
+
+/* Code Block */
+.code-block {
+  font-family: 'Fira Code', monospace;
+  background-color: #050505;
+  border-left: 2px solid #333;
+}
+
+/* Ping Animation */
+@keyframes ping {
+  75%, 100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
+.animate-ping {
+  animation: ping 1s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+/* ============================================
+   Task Management Page Styles
+   ============================================ */
+
+/* Dotted Glow Border */
+.dotted-glow {
+  background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='0' ry='0' stroke='%2300FFFF' stroke-width='2' stroke-dasharray='6%2c 14' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e");
+  box-shadow: inset 0 0 10px rgba(0, 255, 255, 0.1);
+}
+
+/* Range Input Styling */
+input[type=range] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+}
+
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 12px;
+  width: 12px;
+  background: var(--primary);
+  cursor: pointer;
+  margin-top: -5px;
+  box-shadow: 0 0 5px var(--primary);
+  border-radius: 0;
+}
+
+input[type=range]::-webkit-slider-runnable-track {
+  width: 100%;
+  height: 2px;
+  cursor: pointer;
+  background: #333;
+}
+
+input[type=range]::-moz-range-thumb {
+  height: 12px;
+  width: 12px;
+  background: var(--primary);
+  cursor: pointer;
+  box-shadow: 0 0 5px var(--primary);
+  border: none;
+  border-radius: 0;
+}
+
+input[type=range]::-moz-range-track {
+  width: 100%;
+  height: 2px;
+  cursor: pointer;
+  background: #333;
+}
+
+/* Gradient Animation */
+@keyframes gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.animate-gradient {
+  animation: gradient-shift 4s linear infinite;
+}
+
+/* ============================================
+   Settings Page Styles
+   ============================================ */
+
+/* Code Editor */
+.code-editor {
+  font-family: 'Space Grotesk', 'Fira Code', monospace;
+  background-color: #050505;
+  color: #d4d4d4;
+  line-height: 1.5;
+}
+
+.code-keyword { color: #c586c0; }
+.code-string { color: #ce9178; }
+.code-variable { color: #00ff41; text-shadow: 0 0 2px rgba(0, 255, 65, 0.3); }
+.code-comment { color: #6a9955; }
+
+/* Text Glow Variants for inline use */
+.text-glow-green {
+  text-shadow: 0 0 5px rgba(0, 255, 65, 0.5);
+}
+
+.text-glow-red {
+  text-shadow: 0 0 5px rgba(255, 51, 51, 0.5);
+}
+
+.text-glow-amber {
+  text-shadow: 0 0 5px rgba(255, 204, 0, 0.5);
+}
+
+/* Border Glow */
+.border-glow {
+  box-shadow: 0 0 4px rgba(0, 255, 255, 0.2);
+}
+
+/* ============================================
+   Sidebar Styles
+   ============================================ */
+
+/* Sidebar Divider Glow */
+.sidebar-divider-glow {
+  width: 1px;
+  background: linear-gradient(180deg, transparent, var(--primary), transparent);
+  box-shadow: 0 0 8px var(--primary);
+  opacity: 0.5;
+}
+
+/* Navigation Item Active State */
+.nav-item-active {
+  color: var(--primary);
+  background: rgba(0, 255, 255, 0.05);
+  border-right: 2px solid var(--primary);
+}
+
+.nav-item-active .material-symbols-outlined {
+  text-shadow: 0 0 10px rgba(0, 255, 255, 0.7);
+}
