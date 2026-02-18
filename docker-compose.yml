@@ -1,0 +1,163 @@
+services:
+  # ===========================================
+  # Backend API - FastAPI
+  # ===========================================
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: intern-audit-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/intern_audit
+      - DATABASE_SYNC_URL=postgresql://postgres:postgres@db:5432/intern_audit
+      - REDIS_URL=redis://redis:6379/0
+    env_file:
+      - ./backend/.env
+    volumes:
+      - ./backend:/app
+      - ./uploads:/app/uploads
+      - ./screenshots:/app/screenshots
+      - ./repos:/app/repos
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - intern-audit-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # ===========================================
+  # PostgreSQL Database
+  # ===========================================
+  db:
+    image: postgres:16-alpine
+    container_name: intern-audit-db
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: intern_audit
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - intern-audit-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d intern_audit"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ===========================================
+  # Redis - Queue & Cache
+  # ===========================================
+  redis:
+    image: redis:7-alpine
+    container_name: intern-audit-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - intern-audit-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ===========================================
+  # Redis Commander - Redis GUI (Optional)
+  # ===========================================
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: intern-audit-redis-ui
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    depends_on:
+      - redis
+    networks:
+      - intern-audit-network
+    profiles:
+      - tools
+
+  # ===========================================
+  # pgAdmin - PostgreSQL GUI (Optional)
+  # ===========================================
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: intern-audit-pgadmin
+    restart: unless-stopped
+    ports:
+      - "5050:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@internaudit.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      - db
+    networks:
+      - intern-audit-network
+    profiles:
+      - tools
+
+  # ===========================================
+  # Worker - Background Jobs
+  # ===========================================
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: intern-audit-worker
+    restart: unless-stopped
+    command: python -m app.workers.worker
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/intern_audit
+      - REDIS_URL=redis://redis:6379/0
+    env_file:
+      - ./backend/.env
+    volumes:
+      - ./backend:/app
+      - ./uploads:/app/uploads
+      - ./screenshots:/app/screenshots
+      - ./repos:/app/repos
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - intern-audit-network
+    profiles:
+      - workers
+
+# ===========================================
+# Networks
+# ===========================================
+networks:
+  intern-audit-network:
+    driver: bridge
+
+# ===========================================
+# Volumes
+# ===========================================
+volumes:
+  postgres_data:
+  redis_data:
+  pgadmin_data:

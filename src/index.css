@@ -1,0 +1,390 @@
+@import "tailwindcss";
+
+/* ============================================
+   InternAudit AI - Terminal Dark Theme
+   ============================================ */
+
+/* CSS Variables */
+:root {
+  /* Background Colors */
+  --oled-black: #000000;
+  --oled-gray: #0a0a0a;
+  --surface-dark: #111111;
+  --surface-card: #0d0d0d;
+
+  /* Primary Neon Colors */
+  --primary: #00ffff;           /* Neon Cyan */
+  --primary-dim: rgba(0, 255, 255, 0.1);
+  --primary-hover: rgba(0, 255, 255, 0.2);
+
+  /* Secondary Neon Colors */
+  --secondary: #ff00ff;         /* Neon Magenta */
+  --neon-green: #00ff41;        /* Matrix Green */
+  --neon-red: #ff3333;
+  --neon-amber: #ffcc00;
+
+  /* Text Colors */
+  --text-main: #ffffff;
+  --text-muted: #a3a3a3;
+  --text-dim: #666666;
+
+  /* Border Colors */
+  --border-primary: rgba(0, 255, 255, 0.3);
+  --border-subtle: rgba(255, 255, 255, 0.1);
+  --border-dark: #1a1a1a;
+
+  /* Semantic Colors */
+  --success: #00ff41;
+  --warning: #ffcc00;
+  --error: #ff3333;
+  --info: #00ffff;
+
+  /* Background States */
+  --bg-hover: rgba(255, 255, 255, 0.05);
+  --bg-active: rgba(0, 255, 255, 0.1);
+
+  /* Typography */
+  --font-display: 'Space Grotesk', 'Manrope', sans-serif;
+  --font-mono: 'Space Grotesk', 'JetBrains Mono', monospace;
+
+  /* Shadows - Neon Glow Effects */
+  --shadow-neon: 0 0 5px rgba(0, 255, 255, 0.5), 0 0 10px rgba(0, 255, 255, 0.3);
+  --shadow-neon-sm: 0 0 2px rgba(0, 255, 255, 0.5);
+  --shadow-neon-green: 0 0 5px rgba(0, 255, 65, 0.5);
+  --shadow-neon-amber: 0 0 5px rgba(255, 204, 0, 0.5);
+  --shadow-neon-red: 0 0 5px rgba(255, 51, 51, 0.5);
+
+  /* Radius */
+  --radius-sm: 0.125rem;
+  --radius-lg: 0.25rem;
+  --radius-xl: 0.5rem;
+  --radius-full: 9999px;
+
+  /* Animation */
+  --transition-fast: 150ms ease;
+  --transition-normal: 200ms ease;
+}
+
+/* Tailwind Theme Mapping */
+@theme {
+  /* Background */
+  --color-oled-black: var(--oled-black);
+  --color-oled-gray: var(--oled-gray);
+  --color-surface-dark: var(--surface-dark);
+  --color-surface-card: var(--surface-card);
+
+  /* Primary */
+  --color-primary: var(--primary);
+  --color-primary-dim: var(--primary-dim);
+  --color-primary-hover: var(--primary-hover);
+
+  /* Secondary */
+  --color-secondary: var(--secondary);
+  --color-neon-green: var(--neon-green);
+  --color-neon-red: var(--neon-red);
+  --color-neon-amber: var(--neon-amber);
+
+  /* Text */
+  --color-text-main: var(--text-main);
+  --color-text-muted: var(--text-muted);
+  --color-text-dim: var(--text-dim);
+
+  /* Border */
+  --color-border-primary: var(--border-primary);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-dark: var(--border-dark);
+
+  /* Semantic */
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-error: var(--error);
+  --color-info: var(--info);
+
+  /* Background States */
+  --color-bg-hover: var(--bg-hover);
+  --color-bg-active: var(--bg-active);
+
+  /* Typography */
+  --font-display: var(--font-display);
+  --font-mono: var(--font-mono);
+
+  /* Shadows */
+  --shadow-neon: var(--shadow-neon);
+  --shadow-neon-sm: var(--shadow-neon-sm);
+  --shadow-neon-green: var(--shadow-neon-green);
+  --shadow-neon-amber: var(--shadow-neon-amber);
+  --shadow-neon-red: var(--shadow-neon-red);
+
+  /* Radius */
+  --radius-sm: var(--radius-sm);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+}
+
+/* ============================================
+   Base Styles
+   ============================================ */
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #000000;
+  border-left: 1px solid #1a1a1a;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #333;
+  border: 1px solid #000;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--primary);
+}
+
+body {
+  font-family: var(--font-display);
+  background-color: var(--oled-black);
+  color: var(--text-main);
+}
+
+/* ============================================
+   Custom Utilities
+   ============================================ */
+
+/* Terminal Glow */
+.terminal-glow {
+  text-shadow: 0 0 5px rgba(0, 255, 255, 0.5);
+}
+
+/* Divider Glow */
+.divider-glow {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--primary), transparent);
+  box-shadow: 0 0 8px var(--primary);
+  opacity: 0.5;
+}
+
+/* Glass Tag */
+.glass-tag {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Scanlines Overlay */
+.scanlines {
+  background: linear-gradient(
+    to bottom,
+    rgba(255,255,255,0),
+    rgba(255,255,255,0) 50%,
+    rgba(0,0,0,0.2) 50%,
+    rgba(0,0,0,0.2)
+  );
+  background-size: 100% 4px;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 50;
+  pointer-events: none;
+  opacity: 0.15;
+}
+
+/* Grid Background */
+.grid-bg {
+  background-size: 50px 50px;
+  background-image:
+    linear-gradient(to right, #222 1px, transparent 1px),
+    linear-gradient(to bottom, #222 1px, transparent 1px);
+}
+
+/* Blink Cursor */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.cursor-blink {
+  animation: blink 1s step-end infinite;
+}
+
+/* Pulse Dot */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.animate-pulse-dot {
+  animation: pulse-dot 1.5s ease-in-out infinite;
+}
+
+/* Fade In */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out;
+}
+
+/* Slide In */
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.3s ease-out;
+}
+
+/* Corner Decorations */
+.corner-decorations {
+  position: relative;
+}
+
+.corner-decorations::before,
+.corner-decorations::after {
+  content: '';
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-color: var(--primary);
+}
+
+.corner-decorations::before {
+  top: 0;
+  left: 0;
+  border-top: 1px solid;
+  border-left: 1px solid;
+}
+
+.corner-decorations::after {
+  top: 0;
+  right: 0;
+  border-top: 1px solid;
+  border-right: 1px solid;
+}
+
+.corner-bl,
+.corner-br {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-color: var(--primary);
+}
+
+.corner-bl {
+  bottom: 0;
+  left: 0;
+  border-bottom: 1px solid;
+  border-left: 1px solid;
+}
+
+.corner-br {
+  bottom: 0;
+  right: 0;
+  border-bottom: 1px solid;
+  border-right: 1px solid;
+}
+
+/* Neon Border */
+.border-neon {
+  border: 1px solid var(--primary);
+  box-shadow: var(--shadow-neon-sm);
+}
+
+.border-neon-green {
+  border: 1px solid var(--neon-green);
+  box-shadow: var(--shadow-neon-green);
+}
+
+.border-neon-amber {
+  border: 1px solid var(--neon-amber);
+  box-shadow: var(--shadow-neon-amber);
+}
+
+.border-neon-red {
+  border: 1px solid var(--neon-red);
+  box-shadow: var(--shadow-neon-red);
+}
+
+/* Score Colors */
+.score-excellent {
+  color: var(--neon-green);
+  border-color: var(--neon-green);
+  box-shadow: var(--shadow-neon-green);
+}
+
+.score-good {
+  color: var(--primary);
+  border-color: var(--primary);
+  box-shadow: var(--shadow-neon-sm);
+}
+
+.score-average {
+  color: var(--neon-amber);
+  border-color: var(--neon-amber);
+  box-shadow: var(--shadow-neon-amber);
+}
+
+.score-poor {
+  color: var(--neon-red);
+  border-color: var(--neon-red);
+  box-shadow: var(--shadow-neon-red);
+}
+
+/* Hide scrollbar utility */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Selection */
+::selection {
+  background: var(--primary);
+  color: black;
+}
+
+/* Status Badge Styles */
+.status-interviewing {
+  color: var(--primary);
+  border-color: rgba(0, 255, 255, 0.3);
+  box-shadow: 0 0 5px rgba(0, 255, 255, 0.2);
+}
+
+.status-approved {
+  color: var(--neon-green);
+  border-color: rgba(0, 255, 65, 0.3);
+  box-shadow: 0 0 5px rgba(0, 255, 65, 0.2);
+}
+
+.status-pending {
+  color: var(--neon-amber);
+  border-color: rgba(255, 204, 0, 0.3);
+  box-shadow: 0 0 5px rgba(255, 204, 0, 0.2);
+}
+
+.status-rejected {
+  color: var(--text-muted);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.status-withdrawn {
+  color: var(--text-dim);
+  border-color: rgba(255, 255, 255, 0.05);
+}
