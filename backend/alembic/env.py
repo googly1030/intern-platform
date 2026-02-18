@@ -13,7 +13,7 @@ from app.config import settings
 from app.database import Base
 
 # Import models so Alembic can detect them
-# from app.models import *  # noqa
+from app.models import Submission, Task  # noqa
 
 config = context.config
 

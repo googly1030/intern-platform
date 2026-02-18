@@ -2,10 +2,23 @@
 InternAudit AI - FastAPI Application Entry Point
 """
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
+from app.database import init_db
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan events"""
+    # Startup: Initialize database tables
+    await init_db()
+    yield
+    # Shutdown: cleanup if needed
+
 
 # Create FastAPI application
 app = FastAPI(
@@ -14,6 +27,7 @@ app = FastAPI(
     version="0.1.0",
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=lifespan,
 )
 
 # Configure CORS
@@ -50,10 +64,7 @@ async def root():
 
 
 # ===========================================
-# Routers (to be added)
+# Routers
 # ===========================================
-# from app.routes import auth, candidates, submissions, tasks
-# app.include_router(auth.router, prefix="/api/auth", tags=["Auth"])
-# app.include_router(candidates.router, prefix="/api/candidates", tags=["Candidates"])
-# app.include_router(submissions.router, prefix="/api/submissions", tags=["Submissions"])
-# app.include_router(tasks.router, prefix="/api/tasks", tags=["Tasks"])
+from app.routes.submissions import router as submissions_router
+app.include_router(submissions_router, prefix="/api/submissions", tags=["Submissions"])

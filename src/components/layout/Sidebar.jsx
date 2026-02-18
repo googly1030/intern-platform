@@ -2,7 +2,8 @@ import { NavLink } from 'react-router-dom';
 
 const navItems = [
   { path: '/dashboard', icon: 'dashboard', label: 'DASHBOARD' },
-  { path: '/candidate', icon: 'person_search', label: 'CANDIDATES' },
+  { path: '/submit', icon: 'rate_review', label: 'SUBMIT' },
+  { path: '/candidates', icon: 'person_search', label: 'CANDIDATES' },
   { path: '/tasks', icon: 'assignment', label: 'TASKS' },
   { path: '/settings', icon: 'settings_suggest', label: 'SYSTEM' },
 ];

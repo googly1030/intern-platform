@@ -30,8 +30,9 @@ class Settings(BaseSettings):
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"
 
-    # Anthropic Claude API
+    # Anthropic Claude API (or Zhipu AI compatible)
     ANTHROPIC_API_KEY: Optional[str] = None
+    ANTHROPIC_BASE_URL: Optional[str] = None
 
     # Google/Gmail API
     GOOGLE_CLIENT_ID: Optional[str] = None
@@ -52,7 +53,7 @@ class Settings(BaseSettings):
     TASK_PDF_PATH: Optional[str] = None
 
     # CORS
-    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000"
+    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:5174,http://localhost:5175,http://localhost:3000"
 
     # Logging
     LOG_LEVEL: str = "INFO"
