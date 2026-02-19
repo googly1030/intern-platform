@@ -460,6 +460,12 @@ class DeploymentChecker:
                     try:
                         await page.goto(page_url, timeout=15000, wait_until="networkidle")
 
+                        # Wait for fonts to load
+                        await page.wait_for_timeout(2000)
+
+                        # Wait for document fonts to be ready
+                        await page.evaluate_handle("document.fonts.ready")
+
                         # Create safe filename
                         safe_name = page_name.replace("/", "_").replace("\\", "_")
                         screenshot_name = f"{submission_id}_{safe_name}.png"
@@ -481,6 +487,10 @@ class DeploymentChecker:
                     )
                     mobile_page = await mobile_context.new_page()
                     await mobile_page.goto(url, timeout=15000, wait_until="networkidle")
+
+                    # Wait for fonts to load
+                    await mobile_page.wait_for_timeout(2000)
+                    await mobile_page.evaluate_handle("document.fonts.ready")
 
                     mobile_screenshot = f"{submission_id}_mobile.png"
                     mobile_path = os.path.join(self.screenshots_dir, mobile_screenshot)

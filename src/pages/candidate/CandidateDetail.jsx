@@ -4,10 +4,10 @@ import {
   CandidateProfileCard,
   ActionLinks,
   ScoreAnalysis,
-  CodeAnalysisLog,
   SystemFlags,
   UISnapshots,
   CommitHistory,
+  CommitAnalysis,
   DecisionFooter,
 } from '../../components/candidate';
 import { getSubmissionStatus, getScoreReport } from '../../services/scoringService';
@@ -193,7 +193,11 @@ const CandidateDetail = () => {
       {/* Left Sidebar */}
       <aside className="w-full lg:w-64 flex flex-col gap-4 shrink-0 overflow-y-auto pr-1">
         <CandidateProfileCard candidate={candidate} />
-        <ActionLinks />
+        <ActionLinks
+          githubUrl={submission?.github_url}
+          hostedUrl={submission?.hosted_url}
+          videoUrl={submission?.video_url}
+        />
       </aside>
 
       {/* Main Content */}
@@ -233,7 +237,7 @@ const CandidateDetail = () => {
             )}
           </div>
         )}
-        <CodeAnalysisLog />
+        <CommitAnalysis githubUrl={submission?.github_url} submissionId={submission?.id} />
       </section>
 
       {/* Right Sidebar */}
@@ -261,8 +265,8 @@ const CandidateDetail = () => {
             </div>
           </div>
         )}
-        <UISnapshots />
-        <CommitHistory totalCommits={1240} />
+        <UISnapshots screenshots={report?.screenshots} hostedUrl={submission?.hosted_url} />
+        <CommitHistory githubUrl={submission?.github_url} submissionId={submission?.id} />
       </aside>
 
       {/* Decision Footer */}

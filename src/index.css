@@ -414,6 +414,7 @@ body {
   border-color: var(--primary);
   border-style: solid;
   transition: all 0.3s ease;
+  pointer-events: none;
 }
 
 .corner-brackets::before {
@@ -433,6 +434,7 @@ body {
   width: 100%;
   height: 100%;
   opacity: 0.1;
+  pointer-events: none;
 }
 
 /* Text Glow Variants */

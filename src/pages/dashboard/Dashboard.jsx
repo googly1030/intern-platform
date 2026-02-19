@@ -9,6 +9,7 @@ import {
   DataTable,
   Pagination
 } from '../../components/dashboard';
+import BulkUploadSection from '../../components/dashboard/BulkUploadSection';
 import { getDashboardStats } from '../../services/scoringService';
 
 const Dashboard = () => {
@@ -136,6 +137,9 @@ const Dashboard = () => {
 
       {/* Search & Filters */}
       <SearchFilter onSearch={handleSearch} onFilterChange={handleFilterChange} />
+
+      {/* Bulk Upload Section */}
+      <BulkUploadSection onUploadComplete={fetchStats} />
 
       {/* Data Table */}
       {recentSubmissions.length > 0 ? (

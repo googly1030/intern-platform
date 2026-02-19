@@ -309,3 +309,52 @@ export const pollSubmissionStatus = async (submissionId, onProgress, intervalMs 
     poll();
   });
 };
+
+// ===========================================
+// Bulk Upload Functions
+// ===========================================
+
+/**
+ * Download bulk submission Excel template
+ * @returns {Promise<Blob>} Excel template file
+ */
+export const downloadBulkTemplate = async () => {
+  const response = await api.get('/bulk/template', {
+    responseType: 'blob'
+  });
+  return response;
+};
+
+/**
+ * Upload bulk submissions Excel file
+ * @param {File} file - Excel file with submissions
+ * @returns {Promise<Object>} Upload result with batch_id
+ */
+export const uploadBulkSubmissions = async (file) => {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await api.post('/bulk/upload', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    }
+  });
+  return response;
+};
+
+/**
+ * Get bulk upload status
+ * @param {string} batchId - Batch ID from upload
+ * @returns {Promise<Object>} Status with counts
+ */
+export const getBulkStatus = async (batchId) => {
+  return api.get(`/bulk/status/${batchId}`);
+};
+
+/**
+ * Get Redis Queue statistics
+ * @returns {Promise<Object>} Queue stats
+ */
+export const getQueueStats = async () => {
+  return api.get('/bulk/queue/stats');
+};

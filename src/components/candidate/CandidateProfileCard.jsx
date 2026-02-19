@@ -7,8 +7,6 @@ const CandidateProfileCard = ({ candidate }) => {
     education,
     location,
     avatar,
-    github_url,
-    hosted_url,
     grade,
     overall_score,
     status
@@ -93,36 +91,14 @@ const CandidateProfileCard = ({ candidate }) => {
       <div className="space-y-3 text-xs font-mono border-t border-white/10 pt-3">
         <div className="flex flex-col">
           <span className="text-gray-500 uppercase text-[9px]">Contact_Ref</span>
-          <span className="text-white hover:text-primary cursor-pointer truncate">{email || 'N/A'}</span>
+          <a
+            href={`mailto:${email}`}
+            className="text-white hover:text-primary cursor-pointer truncate flex items-center gap-1"
+          >
+            {email || 'N/A'}
+            <span className="material-symbols-outlined text-[12px]">mail</span>
+          </a>
         </div>
-        {github_url && (
-          <div className="flex flex-col">
-            <span className="text-gray-500 uppercase text-[9px]">GitHub_Repo</span>
-            <a
-              href={github_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-white hover:text-primary cursor-pointer truncate flex items-center gap-1"
-            >
-              {github_url.replace('https://github.com/', '')}
-              <span className="material-symbols-outlined text-[14px]">open_in_new</span>
-            </a>
-          </div>
-        )}
-        {hosted_url && (
-          <div className="flex flex-col">
-            <span className="text-gray-500 uppercase text-[9px]">Deployed_URL</span>
-            <a
-              href={hosted_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-white hover:text-primary cursor-pointer truncate flex items-center gap-1"
-            >
-              {hosted_url.replace(/https?:\/\//, '').slice(0, 30)}
-              <span className="material-symbols-outlined text-[14px]">open_in_new</span>
-            </a>
-          </div>
-        )}
         {education && (
           <div className="flex flex-col">
             <span className="text-gray-500 uppercase text-[9px]">Education_Node</span>

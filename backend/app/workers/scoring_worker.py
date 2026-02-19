@@ -190,12 +190,24 @@ def queue_submission(submission_id: str, github_url: str, hosted_url: Optional[s
     # For synchronous processing (development)
     asyncio.create_task(process_submission(submission_id, github_url, hosted_url))
 
-    # TODO: For production with Redis Queue
-    # from redis import Redis
-    # from rq import Queue
-    # redis_conn = Redis(host='localhost', port=6379)
-    # q = Queue('scoring', connection=redis_conn)
-    # q.enqueue(process_submission, submission_id, github_url, hosted_url)
+
+def process_submission_sync(
+    submission_id: str,
+    github_url: str,
+    hosted_url: Optional[str] = None,
+):
+    """
+    Synchronous wrapper for RQ queue.
+
+    RQ requires synchronous functions, so we run the async version
+    in an event loop. This is used by the Redis Queue for bulk uploads.
+
+    Args:
+        submission_id: Unique ID of the submission
+        github_url: GitHub repository URL
+        hosted_url: Optional hosted deployment URL
+    """
+    asyncio.run(process_submission(submission_id, github_url, hosted_url))
 
 
 # For running worker standalone

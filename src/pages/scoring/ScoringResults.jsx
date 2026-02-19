@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getSubmissionStatus, getScoreReport, subscribeToProgress } from '../../services/scoringService';
+import { CodeMetrics, EvidenceSection, ScoreDeductions, EnhancedFlags, InterviewQuestions, UISnapshotsSection } from '../../components/score-report';
 
 const ScoringResults = () => {
   const { submissionId } = useParams();
@@ -118,17 +119,17 @@ const ScoringResults = () => {
   // Get stage display info
   const getStageInfo = (stage) => {
     const stages = {
-      initializing: { label: 'Initializing', icon: '⚙️', color: 'text-gray-400' },
-      cloning: { label: 'Cloning Repository', icon: '📦', color: 'text-primary' },
-      analyzing: { label: 'Analyzing Code', icon: '🔍', color: 'text-neon-amber' },
-      ai_review: { label: 'AI Review', icon: '🤖', color: 'text-neon-magenta' },
-      ai_detection: { label: 'AI Detection', icon: '🎯', color: 'text-neon-amber' },
-      deployment: { label: 'Checking Deployment', icon: '🌐', color: 'text-neon-green' },
-      scoring: { label: 'Calculating Scores', icon: '📊', color: 'text-primary' },
-      completed: { label: 'Completed', icon: '✅', color: 'text-neon-green' },
-      failed: { label: 'Failed', icon: '❌', color: 'text-neon-red' },
+      initializing: { label: 'Initializing', icon: 'settings', color: 'text-gray-400' },
+      cloning: { label: 'Cloning Repository', icon: 'folder_zip', color: 'text-primary' },
+      analyzing: { label: 'Analyzing Code', icon: 'search', color: 'text-neon-amber' },
+      ai_review: { label: 'AI Review', icon: 'smart_toy', color: 'text-neon-magenta' },
+      ai_detection: { label: 'AI Detection', icon: 'radar', color: 'text-neon-amber' },
+      deployment: { label: 'Checking Deployment', icon: 'cloud', color: 'text-neon-green' },
+      scoring: { label: 'Calculating Scores', icon: 'analytics', color: 'text-primary' },
+      completed: { label: 'Completed', icon: 'check_circle', color: 'text-neon-green' },
+      failed: { label: 'Failed', icon: 'error', color: 'text-neon-red' },
     };
-    return stages[stage] || { label: stage, icon: '⏳', color: 'text-gray-400' };
+    return stages[stage] || { label: stage, icon: 'hourglass_empty', color: 'text-gray-400' };
   };
 
   const getGradeColor = (grade) => {
@@ -139,24 +140,15 @@ const ScoringResults = () => {
     return 'text-neon-red';
   };
 
-  const getFlagIcon = (flag) => {
-    const criticalFlags = ['NO_BOOTSTRAP', 'FORM_SUBMISSION_USED', 'SQL_INJECTION_RISK',
-      'NO_MYSQL', 'NO_MONGODB', 'NO_REDIS', 'PHP_SESSION_USED'];
-    const warningFlags = ['CODE_MIXING', 'POOR_FOLDER_STRUCTURE', 'NO_ERROR_HANDLING',
-      'AI_GENERATED_HIGH', 'NO_DEPLOYMENT'];
-
-    if (criticalFlags.includes(flag)) return { icon: '🚫', color: 'text-neon-red' };
-    if (warningFlags.includes(flag)) return { icon: '⚠️', color: 'text-neon-amber' };
-    return { icon: 'ℹ️', color: 'text-primary' };
-  };
-
   if (loading && !report) {
     const stageInfo = getStageInfo(progress.stage);
 
     return (
       <div className="max-w-2xl mx-auto text-center py-20">
         {/* Stage Icon */}
-        <div className="text-6xl mb-4">{stageInfo.icon}</div>
+        <div className="text-6xl mb-4">
+          <span className={`material-symbols-outlined text-[64px] ${stageInfo.color}`}>{stageInfo.icon}</span>
+        </div>
 
         {/* Progress Bar */}
         <div className="mb-6">
@@ -409,38 +401,45 @@ const ScoringResults = () => {
         </div>
       </div>
 
-      {/* Flags */}
-      {report.flags?.length > 0 && (
-        <div className="border border-white/10 p-6 mb-6">
-          <h3 className="text-sm text-neon-red font-mono mb-4">
-            &gt;&gt; FLAGS
-          </h3>
-          <div className="flex flex-wrap gap-2">
-            {report.flags.map((flag, index) => {
-              const { icon, color } = getFlagIcon(flag);
-              return (
-                <span
-                  key={index}
-                  className={`px-3 py-1 border border-white/20 text-xs font-mono ${color}`}
-                >
-                  {icon} {flag}
-                </span>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      {/* NEW: Score Deductions - Why marks were lost */}
+      <ScoreDeductions
+        analysisDetails={report.analysisDetails}
+        scores={report.scores}
+        githubUrl={report.githubUrl}
+      />
+
+      {/* NEW: Code Metrics */}
+      <CodeMetrics
+        analysisDetails={report.analysisDetails}
+        scores={report.scores}
+      />
+
+      {/* NEW: Evidence Section */}
+      <EvidenceSection
+        analysisDetails={report.analysisDetails}
+        githubUrl={report.githubUrl}
+      />
+
+      {/* NEW: Enhanced Flags with explanations */}
+      <EnhancedFlags flags={report.flags} />
+
+      {/* NEW: Interview Questions based on weaknesses */}
+      <InterviewQuestions report={report} />
+
+      {/* NEW: UI Snapshots */}
+      <UISnapshotsSection screenshots={report.screenshots} hostedUrl={report.hostedUrl} />
 
       {/* Strengths & Weaknesses */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         <div className="border border-neon-green/30 p-6">
-          <h3 className="text-sm text-neon-green font-mono mb-4">
+          <h3 className="text-sm text-neon-green font-mono mb-4 flex items-center gap-2">
+            <span className="material-symbols-outlined text-[16px]">thumb_up</span>
             &gt;&gt; STRENGTHS
           </h3>
           <ul className="space-y-2">
             {report.strengths?.map((strength, index) => (
               <li key={index} className="flex items-start gap-2 text-sm text-gray-300 font-mono">
-                <span className="text-neon-green">+</span>
+                <span className="material-symbols-outlined text-[14px] text-neon-green">add</span>
                 {strength}
               </li>
             ))}
@@ -448,13 +447,14 @@ const ScoringResults = () => {
         </div>
 
         <div className="border border-neon-red/30 p-6">
-          <h3 className="text-sm text-neon-red font-mono mb-4">
+          <h3 className="text-sm text-neon-red font-mono mb-4 flex items-center gap-2">
+            <span className="material-symbols-outlined text-[16px]">warning</span>
             &gt;&gt; WEAKNESSES
           </h3>
           <ul className="space-y-2">
             {report.weaknesses?.map((weakness, index) => (
               <li key={index} className="flex items-start gap-2 text-sm text-gray-300 font-mono">
-                <span className="text-neon-red">-</span>
+                <span className="material-symbols-outlined text-[14px] text-neon-red">remove</span>
                 {weakness}
               </li>
             ))}

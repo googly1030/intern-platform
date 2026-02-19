@@ -1,6 +1,10 @@
 import { useState } from 'react';
 
-const UISnapshots = ({ screenshots, hostedUrl }) => {
+/**
+ * UI Snapshots Section for Score Report
+ * Shows screenshots if the project is hosted, otherwise shows "Not Hosted"
+ */
+const UISnapshotsSection = ({ screenshots, hostedUrl }) => {
   const [previewImage, setPreviewImage] = useState(null);
 
   // Check if there's a screenshot error (e.g., Playwright not installed)
@@ -18,19 +22,25 @@ const UISnapshots = ({ screenshots, hostedUrl }) => {
   if (hasError && hostedUrl) {
     const isPlaywrightError = screenshots.error.includes('Playwright') || screenshots.error.includes('browser');
     return (
-      <div className="glass-panel p-4 flex-1">
-        <h3 className="text-xs font-bold text-neon-amber uppercase mb-4">[ UI_SNAPSHOTS ]</h3>
+      <div className="border border-white/10 p-6 mb-6">
+        <h3 className="text-sm text-neon-amber font-mono mb-4 flex items-center gap-2">
+          <span className="material-symbols-outlined text-[16px]">desktop_windows</span>
+          &gt;&gt; UI_SNAPSHOTS
+        </h3>
         <div className="flex flex-col items-center justify-center py-8 text-center">
-          <span className="material-symbols-outlined text-4xl text-neon-amber mb-2">
+          <span className="material-symbols-outlined text-4xl text-neon-amber mb-3">
             {isPlaywrightError ? 'browser_not_supported' : 'error'}
           </span>
-          <p className="text-gray-400 font-mono text-xs">
-            {isPlaywrightError ? 'SCREENSHOTS UNAVAILABLE' : 'CAPTURE FAILED'}
+          <p className="text-gray-400 font-mono text-sm">
+            {isPlaywrightError ? 'SCREENSHOT SERVICE UNAVAILABLE' : 'SCREENSHOTS FAILED'}
           </p>
-          <p className="text-gray-600 font-mono text-[10px] mt-1">
+          <p className="text-gray-600 font-mono text-xs mt-1">
             {isPlaywrightError
-              ? 'Browser service not configured'
-              : 'Could not capture screenshots'}
+              ? 'Browser automation not configured on server'
+              : 'Unable to capture page screenshots'}
+          </p>
+          <p className="text-gray-500 font-mono text-xs mt-2">
+            Deployed at: <a href={hostedUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{hostedUrl}</a>
           </p>
         </div>
       </div>
@@ -39,13 +49,16 @@ const UISnapshots = ({ screenshots, hostedUrl }) => {
 
   if (!isHosted) {
     return (
-      <div className="glass-panel p-4 flex-1">
-        <h3 className="text-xs font-bold text-primary uppercase mb-4">[ UI_SNAPSHOTS ]</h3>
+      <div className="border border-white/10 p-6 mb-6">
+        <h3 className="text-sm text-gray-400 font-mono mb-4 flex items-center gap-2">
+          <span className="material-symbols-outlined text-[16px]">desktop_windows</span>
+          &gt;&gt; UI_SNAPSHOTS
+        </h3>
         <div className="flex flex-col items-center justify-center py-8 text-center">
-          <span className="material-symbols-outlined text-4xl text-gray-600 mb-2">cloud_off</span>
-          <p className="text-gray-500 font-mono text-xs">NOT HOSTED</p>
-          <p className="text-gray-600 font-mono text-[10px] mt-1">
-            No deployment URL provided
+          <span className="material-symbols-outlined text-4xl text-gray-600 mb-3">cloud_off</span>
+          <p className="text-gray-500 font-mono text-sm">NOT HOSTED</p>
+          <p className="text-gray-600 font-mono text-xs mt-1">
+            No deployment URL provided or screenshots unavailable
           </p>
         </div>
       </div>
@@ -53,13 +66,20 @@ const UISnapshots = ({ screenshots, hostedUrl }) => {
   }
 
   return (
-    <div className="glass-panel p-4 flex-1">
-      <h3 className="text-xs font-bold text-primary uppercase mb-4">[ UI_SNAPSHOTS ]</h3>
-      <div className="grid grid-cols-2 gap-3 mb-4">
-        {validScreenshots.slice(0, 4).map(([pageName, screenshotPath], index) => (
+    <div className="border border-white/10 p-6 mb-6">
+      <h3 className="text-sm text-neon-green font-mono mb-4 flex items-center gap-2">
+        <span className="material-symbols-outlined text-[16px]">desktop_windows</span>
+        &gt;&gt; UI_SNAPSHOTS
+      </h3>
+      <p className="text-xs text-gray-500 font-mono mb-4">
+        Captured from: <a href={hostedUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{hostedUrl}</a>
+      </p>
+
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+        {validScreenshots.map(([pageName, screenshotPath], index) => (
           <div
             key={index}
-            className="border border-primary/40 p-1 relative group cursor-pointer hover:border-primary transition-colors"
+            className="border border-white/10 p-1 relative group cursor-pointer hover:border-primary/50 transition-colors"
             onClick={() => setPreviewImage({ name: pageName, path: screenshotPath })}
           >
             {/* Corner decorations */}
@@ -73,21 +93,16 @@ const UISnapshots = ({ screenshots, hostedUrl }) => {
                 alt={pageName}
                 onError={(e) => {
                   e.target.onerror = null;
-                  e.target.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300"><rect fill="%23111" width="400" height="300"/><text fill="%23555" x="50%" y="50%" text-anchor="middle" dy=".3em" font-family="monospace" font-size="12">Preview unavailable</text></svg>';
+                  e.target.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300"><rect fill="%23111" width="400" height="300"/><text fill="%23555" x="50%" y="50%" text-anchor="middle" dy=".3em" font-family="monospace">Preview unavailable</text></svg>';
                 }}
               />
             </div>
-            <div className="text-[9px] text-center mt-1 text-primary/70 uppercase">
+            <div className="text-[10px] text-center mt-1 text-primary/70 font-mono uppercase">
               {pageName.replace(/_/g, ' ')}
             </div>
           </div>
         ))}
       </div>
-      {validScreenshots.length === 0 && (
-        <div className="text-center py-4">
-          <p className="text-gray-500 font-mono text-xs">No screenshots available</p>
-        </div>
-      )}
 
       {/* Preview Modal */}
       {previewImage && (
@@ -123,8 +138,14 @@ const UISnapshots = ({ screenshots, hostedUrl }) => {
           </div>
         </div>
       )}
+
+      {validScreenshots.length === 0 && (
+        <div className="text-center py-4">
+          <p className="text-gray-500 font-mono text-sm">No screenshots captured</p>
+        </div>
+      )}
     </div>
   );
 };
 
-export default UISnapshots;
+export default UISnapshotsSection;

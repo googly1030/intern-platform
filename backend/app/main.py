@@ -164,4 +164,7 @@ async def websocket_stats():
 # Routers
 # ===========================================
 from app.routes.submissions import router as submissions_router
+from app.routes.bulk_upload import router as bulk_upload_router
+
 app.include_router(submissions_router, prefix="/api/submissions", tags=["Submissions"])
+app.include_router(bulk_upload_router, prefix="/api/bulk", tags=["Bulk Upload"])

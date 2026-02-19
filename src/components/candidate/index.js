@@ -5,4 +5,5 @@ export { default as CodeAnalysisLog } from './CodeAnalysisLog';
 export { default as SystemFlags } from './SystemFlags';
 export { default as UISnapshots } from './UISnapshots';
 export { default as CommitHistory } from './CommitHistory';
+export { default as CommitAnalysis } from './CommitAnalysis';
 export { default as DecisionFooter } from './DecisionFooter';

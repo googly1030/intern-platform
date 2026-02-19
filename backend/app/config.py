@@ -52,6 +52,9 @@ class Settings(BaseSettings):
     # Task PDF
     TASK_PDF_PATH: Optional[str] = None
 
+    # GitHub API
+    GITHUB_TOKEN: Optional[str] = None
+
     # CORS
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:5174,http://localhost:5175,http://localhost:3000"
 
