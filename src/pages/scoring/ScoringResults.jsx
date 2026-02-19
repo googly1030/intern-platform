@@ -1,48 +1,135 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getSubmissionStatus, getScoreReport } from '../../services/scoringService';
+import { getSubmissionStatus, getScoreReport, subscribeToProgress } from '../../services/scoringService';
 
 const ScoringResults = () => {
   const { submissionId } = useParams();
   const navigate = useNavigate();
-  const [status, setStatus] = useState(null);
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [progress, setProgress] = useState({
+    stage: 'initializing',
+    progress: 0,
+    message: 'Initializing...',
+  });
+
+  // Handle progress updates from WebSocket
+  const handleProgressUpdate = useCallback((data) => {
+    console.log('[Progress]', data);
+    setProgress({
+      stage: data.stage || 'processing',
+      progress: data.progress || 0,
+      message: data.message || 'Processing...',
+    });
+
+    // If completed, fetch the full report
+    if (data.done) {
+      fetchReport();
+    }
+
+    // If failed, show error
+    if (data.error) {
+      setError(data.message || 'Scoring failed');
+      setLoading(false);
+    }
+  }, []);
+
+  // Fetch the full score report
+  const fetchReport = useCallback(async () => {
+    try {
+      const reportData = await getScoreReport(submissionId);
+      setReport(reportData);
+      setLoading(false);
+    } catch (err) {
+      console.error('Failed to fetch report:', err);
+      // Fallback: try to get at least the status
+      try {
+        const statusResult = await getSubmissionStatus(submissionId);
+        if (statusResult.status === 'failed') {
+          setError(statusResult.error_message || 'Scoring failed');
+        } else {
+          setError('Failed to fetch results');
+        }
+      } catch (statusErr) {
+        setError('Failed to fetch results');
+      }
+      setLoading(false);
+    }
+  }, [submissionId]);
 
   useEffect(() => {
-    const pollStatus = async () => {
+    let unsubscribe = null;
+    let pollInterval = null;
+    let mounted = true;
+
+    const initialize = async () => {
       try {
+        // Get initial status
         const result = await getSubmissionStatus(submissionId);
-        setStatus(result);
+
+        if (!mounted) return;
 
         if (result.status === 'completed') {
-          // Fetch full report
-          const reportData = await getScoreReport(submissionId);
-          setReport(reportData);
-          setLoading(false);
+          // Already completed, fetch report
+          fetchReport();
         } else if (result.status === 'failed') {
-          setError('Scoring failed. Please try again.');
+          setError(result.error_message || 'Scoring failed');
           setLoading(false);
+        } else {
+          // Subscribe to WebSocket for real-time updates
+          unsubscribe = subscribeToProgress(submissionId, handleProgressUpdate);
+
+          // Also poll as fallback
+          pollInterval = setInterval(async () => {
+            try {
+              const statusResult = await getSubmissionStatus(submissionId);
+
+              if (!mounted) return;
+
+              if (statusResult.status === 'completed') {
+                clearInterval(pollInterval);
+                fetchReport();
+              } else if (statusResult.status === 'failed') {
+                clearInterval(pollInterval);
+                setError(statusResult.error_message || 'Scoring failed');
+                setLoading(false);
+              }
+            } catch (err) {
+              console.error('Polling error:', err);
+            }
+          }, 3000);
         }
-        // Continue polling if pending or processing
       } catch (err) {
         setError(err.detail || 'Failed to fetch status');
         setLoading(false);
       }
     };
 
-    pollStatus();
+    initialize();
 
-    // Poll every 2 seconds while processing
-    const interval = setInterval(() => {
-      if (status?.status === 'pending' || status?.status === 'processing') {
-        pollStatus();
-      }
-    }, 2000);
+    return () => {
+      mounted = false;
+      if (pollInterval) clearInterval(pollInterval);
+      if (unsubscribe) unsubscribe();
+    };
+  }, [submissionId, handleProgressUpdate, fetchReport]);
 
-    return () => clearInterval(interval);
-  }, [submissionId, status?.status]);
+  // Get stage display info
+  const getStageInfo = (stage) => {
+    const stages = {
+      initializing: { label: 'Initializing', icon: '⚙️', color: 'text-gray-400' },
+      cloning: { label: 'Cloning Repository', icon: '📦', color: 'text-primary' },
+      analyzing: { label: 'Analyzing Code', icon: '🔍', color: 'text-neon-amber' },
+      ai_review: { label: 'AI Review', icon: '🤖', color: 'text-neon-magenta' },
+      ai_detection: { label: 'AI Detection', icon: '🎯', color: 'text-neon-amber' },
+      deployment: { label: 'Checking Deployment', icon: '🌐', color: 'text-neon-green' },
+      scoring: { label: 'Calculating Scores', icon: '📊', color: 'text-primary' },
+      completed: { label: 'Completed', icon: '✅', color: 'text-neon-green' },
+      failed: { label: 'Failed', icon: '❌', color: 'text-neon-red' },
+    };
+    return stages[stage] || { label: stage, icon: '⏳', color: 'text-gray-400' };
+  };
 
   const getGradeColor = (grade) => {
     if (!grade) return 'text-gray-400';
@@ -64,36 +151,70 @@ const ScoringResults = () => {
   };
 
   if (loading && !report) {
+    const stageInfo = getStageInfo(progress.stage);
+
     return (
       <div className="max-w-2xl mx-auto text-center py-20">
-        <div className="inline-block animate-spin mb-4">
-          <svg className="w-16 h-16 text-primary" viewBox="0 0 24 24" fill="none">
-            <circle
-              className="opacity-25"
-              cx="12"
-              cy="12"
-              r="10"
-              stroke="currentColor"
-              strokeWidth="2"
+        {/* Stage Icon */}
+        <div className="text-6xl mb-4">{stageInfo.icon}</div>
+
+        {/* Progress Bar */}
+        <div className="mb-6">
+          <div className="w-full h-3 bg-white/10 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-primary transition-all duration-500 ease-out"
+              style={{ width: `${progress.progress}%` }}
             />
-            <path
-              className="opacity-75"
-              fill="currentColor"
-              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-            />
-          </svg>
+          </div>
+          <div className="flex justify-between mt-2">
+            <span className="text-xs text-gray-500 font-mono">{progress.progress}%</span>
+            <span className="text-xs text-gray-500 font-mono">{progress.stage}</span>
+          </div>
         </div>
-        <h2 className="text-xl font-mono text-white mb-2">
-          <span className="text-primary">&gt;&gt;</span> SCORING IN PROGRESS
+
+        <h2 className={`text-xl font-mono mb-2 ${stageInfo.color}`}>
+          <span className="text-primary">&gt;&gt;</span> {stageInfo.label.toUpperCase()}
         </h2>
-        <p className="text-gray-400 text-sm font-mono">
-          Status: {status?.status || 'Initializing...'}
+        <p className="text-gray-400 text-sm font-mono mb-6">
+          {progress.message}
         </p>
-        <div className="mt-6 flex justify-center gap-2">
+
+        {/* Animated dots */}
+        <div className="flex justify-center gap-2">
           <span className="w-2 h-2 bg-primary rounded-full animate-pulse" />
           <span className="w-2 h-2 bg-primary rounded-full animate-pulse delay-100" />
           <span className="w-2 h-2 bg-primary rounded-full animate-pulse delay-200" />
         </div>
+
+        {/* Processing Steps */}
+        <div className="mt-8 border border-white/10 p-4">
+          <div className="grid grid-cols-4 gap-2 text-xs font-mono">
+            {['cloning', 'analyzing', 'ai_review', 'scoring'].map((s, i) => {
+              const isActive = progress.stage === s;
+              const isComplete = ['completed'].includes(progress.stage) ||
+                (progress.stage === 'scoring' && i < 3) ||
+                (progress.stage === 'ai_review' && i < 2) ||
+                (progress.stage === 'analyzing' && i < 1);
+              return (
+                <div
+                  key={s}
+                  className={`py-2 px-1 ${
+                    isActive ? 'bg-primary/20 text-primary border border-primary' :
+                    isComplete ? 'bg-neon-green/10 text-neon-green border border-neon-green/30' :
+                    'bg-white/5 text-gray-500 border border-white/10'
+                  }`}
+                >
+                  {s.replace('_', ' ').toUpperCase()}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Submission ID */}
+        <p className="mt-6 text-xs text-gray-600 font-mono">
+          ID: {submissionId}
+        </p>
       </div>
     );
   }

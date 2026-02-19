@@ -1,15 +1,22 @@
 """
 Scorer Service
 Orchestrates all analysis services and calculates final score
+With comprehensive logging and progress tracking
 """
 
 import os
-from typing import Optional
+import logging
+import time
+from typing import Optional, Callable
+from datetime import datetime
 
 from app.services.repo_cloner import RepoCloner
 from app.services.code_analyzer import CodeAnalyzer
 from app.services.ai_reviewer import AIReviewer
 from app.services.deployment_checker import DeploymentChecker
+
+# Configure logger
+logger = logging.getLogger(__name__)
 
 
 class Scorer:
@@ -49,6 +56,7 @@ class Scorer:
         self,
         repos_dir: Optional[str] = None,
         api_key: Optional[str] = None,
+        progress_callback: Optional[Callable[[str, str, int, str], None]] = None,
     ):
         """
         Initialize Scorer.
@@ -56,10 +64,31 @@ class Scorer:
         Args:
             repos_dir: Directory to clone repos into
             api_key: Anthropic API key for AI review
+            progress_callback: Optional callback for progress updates
+                Callback signature: (submission_id, stage, progress_percent, message)
         """
         self.repo_cloner = RepoCloner(repos_dir)
         self.ai_reviewer = AIReviewer(api_key)
         self.deployment_checker = DeploymentChecker()
+        self.progress_callback = progress_callback
+        logger.info("Scorer initialized")
+
+    def _report_progress(self, submission_id: str, stage: str, progress: int, message: str = ""):
+        """
+        Report progress to callback if available.
+
+        Args:
+            submission_id: Submission ID
+            stage: Current processing stage
+            progress: Progress percentage (0-100)
+            message: Optional status message
+        """
+        logger.info(f"[{submission_id}] Progress: {progress}% - {stage} - {message}")
+        if self.progress_callback:
+            try:
+                self.progress_callback(submission_id, stage, progress, message)
+            except Exception as e:
+                logger.error(f"Progress callback error: {e}")
 
     def score_submission(
         self,
@@ -78,6 +107,9 @@ class Scorer:
         Returns:
             dict with complete score report
         """
+        start_time = time.time()
+        logger.info(f"[{submission_id}] Starting scoring for {github_url}")
+
         result = {
             "status": "processing",
             "repo_path": None,
@@ -92,52 +124,100 @@ class Scorer:
             "screenshots": {},
             "analysis_details": {},
             "error": None,
+            "processing_time_ms": 0,
         }
 
         try:
-            # Step 1: Clone repository
+            # Step 1: Clone repository (10%)
+            self._report_progress(submission_id, "cloning", 10, "Cloning repository...")
+            logger.info(f"[{submission_id}] Cloning repository from {github_url}")
+            clone_start = time.time()
             repo_path = self.repo_cloner.clone(github_url, submission_id)
+            clone_time = (time.time() - clone_start) * 1000
+            logger.info(f"[{submission_id}] Repository cloned to {repo_path} in {clone_time:.0f}ms")
             result["repo_path"] = repo_path
 
-            # Step 2: Get repo info
+            # Step 2: Get repo info (20%)
+            self._report_progress(submission_id, "analyzing", 20, "Getting repository info...")
+            logger.info(f"[{submission_id}] Getting repository info")
             repo_info = self.repo_cloner.get_repo_info(repo_path)
+            logger.debug(f"[{submission_id}] Repo info: {repo_info.get('total_commits', 0)} commits")
 
-            # Step 3: Analyze code
+            # Step 3: Analyze code (40%)
+            self._report_progress(submission_id, "analyzing", 40, "Analyzing code structure...")
+            logger.info(f"[{submission_id}] Starting code analysis")
+            analysis_start = time.time()
             analyzer = CodeAnalyzer(repo_path)
             analysis = analyzer.analyze_all()
+            analysis_time = (time.time() - analysis_start) * 1000
+            logger.info(f"[{submission_id}] Code analysis completed in {analysis_time:.0f}ms")
             result["analysis_details"] = analysis
 
-            # Step 4: Get code files for AI review
+            # Step 4: Get code files for AI review (50%)
+            self._report_progress(submission_id, "ai_review", 50, "Preparing files for AI review...")
+            logger.info(f"[{submission_id}] Getting code files for AI review")
             code_files = self._get_code_files(repo_path)
+            logger.info(f"[{submission_id}] Found {len(code_files)} code files")
 
-            # Step 5: AI review
+            # Step 5: AI review (70%)
+            self._report_progress(submission_id, "ai_review", 70, "Running AI code review...")
+            logger.info(f"[{submission_id}] Starting AI code quality review")
+            ai_start = time.time()
             ai_quality = self.ai_reviewer.review_code_quality(code_files, analysis)
+            ai_time = (time.time() - ai_start) * 1000
+            logger.info(f"[{submission_id}] AI review completed in {ai_time:.0f}ms")
 
-            # Step 6: AI generation detection
+            # Check if AI review was a fallback
+            if ai_quality.get("_fallback"):
+                logger.warning(f"[{submission_id}] AI review used fallback: {ai_quality.get('_fallback_reason')}")
+
+            # Step 6: AI generation detection (80%)
+            self._report_progress(submission_id, "ai_detection", 80, "Detecting AI-generated code...")
+            logger.info(f"[{submission_id}] Starting AI generation detection")
             ai_detection = self.ai_reviewer.detect_ai_generation(
                 repo_info, code_files, analysis
             )
             result["ai_generation_risk"] = ai_detection["risk_score"]
+            logger.info(f"[{submission_id}] AI generation risk: {ai_detection['risk_score']}")
 
-            # Step 7: Check deployment (hosted URL and video URL)
+            # Step 7: Check deployment (85%)
+            self._report_progress(submission_id, "deployment", 85, "Checking deployment...")
+            logger.info(f"[{submission_id}] Checking deployment for {hosted_url}")
             deployment_result = self.deployment_checker.check_deployment(hosted_url, None)
             result["deployment_check"] = deployment_result
+            logger.info(f"[{submission_id}] Deployment check: {deployment_result.get('status', 'unknown')}")
 
-            # Step 8: Calculate scores
+            # Capture screenshots if deployment is valid
+            if hosted_url and deployment_result.get("hosted", {}).get("valid"):
+                logger.info(f"[{submission_id}] Capturing screenshots...")
+                try:
+                    screenshots = self.deployment_checker.capture_screenshots_sync(hosted_url, submission_id)
+                    result["screenshots"] = screenshots
+                    # Also store in deployment_result for reference
+                    deployment_result["screenshots"] = screenshots
+                    logger.info(f"[{submission_id}] Screenshots captured: {list(screenshots.keys())}")
+                except Exception as e:
+                    logger.warning(f"[{submission_id}] Screenshot capture failed: {e}")
+                    result["screenshots"] = {"error": str(e)}
+
+            # Step 8: Calculate scores (90%)
+            self._report_progress(submission_id, "scoring", 90, "Calculating final scores...")
+            logger.info(f"[{submission_id}] Calculating scores")
             scores = self._calculate_scores(analysis, ai_quality)
-            # Add deployment score
             scores["deployment"] = deployment_result["deployment_score"]
             result["scores"] = scores
 
             # Step 9: Generate flags
+            logger.info(f"[{submission_id}] Generating flags")
             flags = self._generate_flags(analysis, ai_detection)
-            # Add deployment flags
             flags.extend(deployment_result["flags"])
             result["flags"] = flags
+            logger.info(f"[{submission_id}] Flags: {flags}")
 
             # Step 10: Calculate overall score
             overall_score = self._calculate_overall_score(scores)
             result["overall_score"] = overall_score
+            logger.info(f"[{submission_id}] Overall score: {overall_score}")
 
             # Step 11: Determine grade
             for threshold, grade, recommendation in self.GRADE_THRESHOLDS:
@@ -145,16 +225,24 @@ class Scorer:
                     result["grade"] = grade
                     result["recommendation"] = recommendation
                     break
+            logger.info(f"[{submission_id}] Grade: {result['grade']} - {result['recommendation']}")
 
             # Step 12: Get strengths and weaknesses
             result["strengths"] = self._get_strengths(analysis, ai_quality, deployment_result)
             result["weaknesses"] = self._get_weaknesses(analysis, ai_quality, deployment_result)
 
             result["status"] = "completed"
+            result["processing_time_ms"] = int((time.time() - start_time) * 1000)
+
+            self._report_progress(submission_id, "completed", 100, "Analysis complete!")
+            logger.info(f"[{submission_id}] Scoring completed in {result['processing_time_ms']}ms")
 
         except Exception as e:
             result["status"] = "failed"
             result["error"] = str(e)
+            result["processing_time_ms"] = int((time.time() - start_time) * 1000)
+            logger.error(f"[{submission_id}] Scoring failed: {e}", exc_info=True)
+            self._report_progress(submission_id, "failed", 0, f"Error: {str(e)}")
 
         return result
 
@@ -361,10 +449,12 @@ class Scorer:
                             code_files[file_path] = f.read()
                         count += 1
                         if count >= max_files:
+                            logger.debug(f"Reached max file limit ({max_files})")
                             return code_files
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.warning(f"Could not read file {file_path}: {e}")
 
+        logger.debug(f"Loaded {len(code_files)} code files for analysis")
         return code_files
 
     def cleanup(self, submission_id: str) -> bool:

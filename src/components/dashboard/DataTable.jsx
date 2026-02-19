@@ -14,9 +14,9 @@ const DataTable = ({ candidates = [] }) => {
           <thead>
             <tr className="bg-gray-900/50 border-b border-white/10 text-[10px] uppercase text-primary font-mono tracking-widest">
               <th className="px-6 py-4 font-normal">Candidate_ID</th>
-              <th className="px-6 py-4 font-normal">Role_Class</th>
-              <th className="px-6 py-4 font-normal text-center">Perf_Index</th>
-              <th className="px-6 py-4 font-normal">Stack_Array</th>
+              <th className="px-6 py-4 font-normal">Email</th>
+              <th className="px-6 py-4 font-normal text-center">Grade</th>
+              <th className="px-6 py-4 font-normal">Repository</th>
               <th className="px-6 py-4 font-normal">Status_Flag</th>
               <th className="px-6 py-4 font-normal">Timestamp</th>
               <th className="px-6 py-4 font-normal text-right">Run_Cmd</th>

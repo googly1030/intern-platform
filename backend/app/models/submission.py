@@ -93,6 +93,9 @@ class Submission(Base):
     # Local repo path
     repo_path: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
 
+    # Processing time in milliseconds
+    processing_time_ms: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
     def __repr__(self) -> str:
         return f"<Submission {self.id} - {self.candidate_email} - {self.status}>"
 
@@ -117,6 +120,7 @@ class Submission(Base):
             "strengths": self.strengths,
             "weaknesses": self.weaknesses,
             "screenshots": self.screenshots,
+            "processing_time_ms": self.processing_time_ms,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "processed_at": self.processed_at.isoformat() if self.processed_at else None,
         }
@@ -138,5 +142,7 @@ class Submission(Base):
             "strengths": self.strengths or [],
             "weaknesses": self.weaknesses or [],
             "screenshots": self.screenshots,
+            "analysisDetails": self.analysis_details,
+            "processingTimeMs": self.processing_time_ms,
             "analyzedAt": self.processed_at.isoformat() if self.processed_at else None,
         }

@@ -8,7 +8,7 @@ from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -72,6 +72,18 @@ class ScoreReportResponse(BaseModel):
     analyzedAt: Optional[str] = None
 
 
+class DashboardStats(BaseModel):
+    """Schema for dashboard statistics"""
+
+    total_count: int
+    avg_score: Optional[float] = None
+    pending_count: int
+    processing_count: int
+    completed_count: int
+    failed_count: int
+    recent_submissions: list[SubmissionResponse]
+
+
 # ===========================================
 # API Endpoints
 # ===========================================
@@ -125,6 +137,112 @@ async def create_submission(
         grade=submission.grade,
         created_at=submission.created_at,
         processed_at=submission.processed_at,
+    )
+
+
+@router.get("/", response_model=list[SubmissionResponse])
+async def list_submissions(
+    skip: int = 0,
+    limit: int = 20,
+    status_filter: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    List all submissions with optional filtering.
+
+    Query params:
+    - skip: Number of records to skip (pagination)
+    - limit: Maximum records to return
+    - status: Filter by status (pending, processing, completed, failed)
+    """
+    query = select(Submission).order_by(Submission.created_at.desc())
+
+    if status_filter:
+        query = query.where(Submission.status == status_filter)
+
+    query = query.offset(skip).limit(limit)
+    result = await db.execute(query)
+    submissions = result.scalars().all()
+
+    return [
+        SubmissionResponse(
+            id=s.id,
+            candidate_name=s.candidate_name,
+            candidate_email=s.candidate_email,
+            github_url=s.github_url,
+            hosted_url=s.hosted_url,
+            status=s.status,
+            overall_score=s.overall_score,
+            grade=s.grade,
+            created_at=s.created_at,
+            processed_at=s.processed_at,
+        )
+        for s in submissions
+    ]
+
+
+@router.get("/stats", response_model=DashboardStats)
+async def get_dashboard_stats(
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get dashboard statistics.
+
+    Returns aggregated counts and recent submissions.
+    """
+    # Total count
+    total_result = await db.execute(select(func.count(Submission.id)))
+    total_count = total_result.scalar() or 0
+
+    # Average score (only from completed submissions)
+    avg_result = await db.execute(
+        select(func.avg(Submission.overall_score)).where(
+            Submission.status == "completed",
+            Submission.overall_score.isnot(None),
+        )
+    )
+    avg_score = avg_result.scalar()
+
+    # Count by status
+    async def get_status_count(status: str) -> int:
+        result = await db.execute(
+            select(func.count(Submission.id)).where(Submission.status == status)
+        )
+        return result.scalar() or 0
+
+    pending_count = await get_status_count("pending")
+    processing_count = await get_status_count("processing")
+    completed_count = await get_status_count("completed")
+    failed_count = await get_status_count("failed")
+
+    # Recent submissions (last 10)
+    recent_result = await db.execute(
+        select(Submission).order_by(Submission.created_at.desc()).limit(10)
+    )
+    recent_submissions = recent_result.scalars().all()
+
+    return DashboardStats(
+        total_count=total_count,
+        avg_score=round(avg_score, 1) if avg_score else None,
+        pending_count=pending_count,
+        processing_count=processing_count,
+        completed_count=completed_count,
+        failed_count=failed_count,
+        recent_submissions=[
+            SubmissionResponse(
+                id=s.id,
+                candidate_name=s.candidate_name,
+                candidate_email=s.candidate_email,
+                github_url=s.github_url,
+                hosted_url=s.hosted_url,
+                status=s.status,
+                overall_score=s.overall_score,
+                grade=s.grade,
+                created_at=s.created_at,
+                processed_at=s.processed_at,
+            )
+            for s in recent_submissions
+        ],
     )
 
 
@@ -194,47 +312,6 @@ async def get_score_report(
 
     report = submission.get_score_report()
     return ScoreReportResponse(**report)
-
-
-@router.get("/", response_model=list[SubmissionResponse])
-async def list_submissions(
-    skip: int = 0,
-    limit: int = 20,
-    status_filter: Optional[str] = None,
-    db: AsyncSession = Depends(get_db),
-):
-    """
-    List all submissions with optional filtering.
-
-    Query params:
-    - skip: Number of records to skip (pagination)
-    - limit: Maximum records to return
-    - status: Filter by status (pending, processing, completed, failed)
-    """
-    query = select(Submission).order_by(Submission.created_at.desc())
-
-    if status_filter:
-        query = query.where(Submission.status == status_filter)
-
-    query = query.offset(skip).limit(limit)
-    result = await db.execute(query)
-    submissions = result.scalars().all()
-
-    return [
-        SubmissionResponse(
-            id=s.id,
-            candidate_name=s.candidate_name,
-            candidate_email=s.candidate_email,
-            github_url=s.github_url,
-            hosted_url=s.hosted_url,
-            status=s.status,
-            overall_score=s.overall_score,
-            grade=s.grade,
-            created_at=s.created_at,
-            processed_at=s.processed_at,
-        )
-        for s in submissions
-    ]
 
 
 @router.post("/{submission_id}/trigger", response_model=SubmissionResponse)

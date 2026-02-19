@@ -1,9 +1,11 @@
 """
 Scoring Worker
 Background job for processing submissions
+With WebSocket progress updates
 """
 
 import asyncio
+import logging
 from datetime import datetime
 from typing import Optional
 
@@ -14,6 +16,9 @@ from app.config import settings
 from app.database import async_session
 from app.models.submission import Submission
 from app.services.scorer import Scorer
+from app.services.websocket_manager import get_websocket_manager
+
+logger = logging.getLogger(__name__)
 
 
 async def process_submission(
@@ -31,20 +36,47 @@ async def process_submission(
         github_url: GitHub repository URL
         hosted_url: Optional hosted deployment URL
     """
+    ws_manager = get_websocket_manager()
+    logger.info(f"[{submission_id}] Starting submission processing")
+
     async with async_session() as db:
         try:
             # Update status to processing
             await update_submission_status(db, submission_id, "processing")
 
-            # Initialize scorer
+            # Broadcast initial status via WebSocket
+            await ws_manager.broadcast_progress(
+                submission_id=submission_id,
+                stage="initializing",
+                progress=5,
+                message="Starting analysis..."
+            )
+
+            # Get the current event loop to pass to the callback
+            main_loop = asyncio.get_event_loop()
+
+            # Create progress callback for WebSocket updates
+            def progress_callback(sub_id: str, stage: str, progress: int, message: str = ""):
+                """Sync callback that schedules async WebSocket broadcast from executor thread"""
+                try:
+                    # Use run_coroutine_threadsafe to schedule from another thread
+                    future = asyncio.run_coroutine_threadsafe(
+                        ws_manager.broadcast_progress(sub_id, stage, progress, message),
+                        main_loop
+                    )
+                    # Don't wait for result, just fire and forget
+                except Exception as e:
+                    logger.warning(f"Failed to broadcast progress: {e}")
+
+            # Initialize scorer with progress callback
             scorer = Scorer(
                 repos_dir=getattr(settings, "REPOS_DIR", "./repos"),
                 api_key=getattr(settings, "ANTHROPIC_API_KEY", None),
+                progress_callback=progress_callback,
             )
 
             # Run scoring (synchronous, so we run in executor)
-            loop = asyncio.get_event_loop()
-            result = await loop.run_in_executor(
+            result = await main_loop.run_in_executor(
                 None,
                 lambda: scorer.score_submission(github_url, submission_id, hosted_url)
             )
@@ -52,15 +84,37 @@ async def process_submission(
             # Update submission with results
             await update_submission_results(db, submission_id, result)
 
-            print(f"Submission {submission_id} scoring completed: {result['status']}")
+            # Broadcast completion via WebSocket
+            await ws_manager.broadcast_progress(
+                submission_id=submission_id,
+                stage="completed",
+                progress=100,
+                message="Analysis complete!",
+                data={
+                    "overall_score": result.get("overall_score"),
+                    "grade": result.get("grade"),
+                    "recommendation": result.get("recommendation"),
+                }
+            )
+
+            logger.info(f"[{submission_id}] Scoring completed: {result['status']}")
 
         except Exception as e:
-            print(f"Error processing submission {submission_id}: {e}")
+            logger.error(f"[{submission_id}] Error processing submission: {e}", exc_info=True)
             await update_submission_status(
                 db,
                 submission_id,
                 "failed",
                 error_message=str(e),
+            )
+
+            # Broadcast error via WebSocket
+            await ws_manager.broadcast_progress(
+                submission_id=submission_id,
+                stage="failed",
+                progress=0,
+                message=f"Analysis failed: {str(e)}",
+                data={"error": str(e)}
             )
 
 
@@ -71,6 +125,7 @@ async def update_submission_status(
     error_message: Optional[str] = None,
 ):
     """Update submission status in database"""
+    logger.info(f"[{submission_id}] Updating status to: {status}")
     result = await db.execute(
         select(Submission).where(Submission.id == submission_id)
     )
@@ -80,7 +135,10 @@ async def update_submission_status(
         submission.status = status
         if error_message:
             submission.error_message = error_message
+            logger.error(f"[{submission_id}] Error message: {error_message}")
         await db.commit()
+    else:
+        logger.warning(f"[{submission_id}] Submission not found in database")
 
 
 async def update_submission_results(
@@ -89,6 +147,7 @@ async def update_submission_results(
     result: dict,
 ):
     """Update submission with scoring results"""
+    logger.info(f"[{submission_id}] Updating with results: score={result.get('overall_score')}, grade={result.get('grade')}")
     result_db = await db.execute(
         select(Submission).where(Submission.id == submission_id)
     )
@@ -108,8 +167,12 @@ async def update_submission_results(
         submission.weaknesses = result.get("weaknesses", [])
         submission.screenshots = result.get("screenshots", {})
         submission.analysis_details = result.get("analysis_details", {})
+        submission.processing_time_ms = result.get("processing_time_ms")
         submission.processed_at = datetime.utcnow()
         await db.commit()
+        logger.info(f"[{submission_id}] Results saved to database")
+    else:
+        logger.warning(f"[{submission_id}] Submission not found when saving results")
 
 
 def queue_submission(submission_id: str, github_url: str, hosted_url: Optional[str] = None):
