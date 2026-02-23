@@ -21,6 +21,7 @@ from app.models.submission import Submission
 from app.workers.scoring_worker import process_submission
 from app.config import settings
 from app.services.commit_analyzer import CommitAnalyzer
+from app.services.github_cache import github_cache
 
 logger = logging.getLogger(__name__)
 
@@ -457,12 +458,16 @@ class CommitHistoryResponse(BaseModel):
 @router.get("/{submission_id}/commits", response_model=CommitHistoryResponse)
 async def get_commit_history(
     submission_id: str,
+    refresh: bool = False,
     db: AsyncSession = Depends(get_db),
 ):
     """
     Get GitHub commit history for a submission's repository.
 
     Returns commit details and activity data for visualization.
+
+    Query Parameters:
+        refresh: If true, bypasses cache and fetches fresh data from GitHub
     """
     result = await db.execute(
         select(Submission).where(Submission.id == submission_id)
@@ -492,6 +497,13 @@ async def get_commit_history(
 
     owner = match.group(1)
     repo = match.group(2)
+
+    # Check cache first (unless refresh=true)
+    if not refresh:
+        cached = await github_cache.get_raw_commits(owner, repo)
+        if cached:
+            logger.info(f"[{submission_id}] Using cached commits for {owner}/{repo}")
+            return CommitHistoryResponse(**cached)
 
     # Prepare headers with optional GitHub token
     headers = {"Accept": "application/vnd.github.v3+json"}
@@ -549,6 +561,25 @@ async def get_commit_history(
                     ]
                 }
 
+                # Build response data (convert Pydantic models to dicts for caching)
+                response_data = {
+                    "repo_name": f"{owner}/{repo}",
+                    "total_commits": len(commits),
+                    "commits": [c.model_dump() for c in commits],
+                    "activity": activity_data
+                }
+
+                # Cache the successful result
+                await github_cache.set_raw_commits(owner, repo, response_data)
+                logger.info(f"[{submission_id}] Cached commits for {owner}/{repo}")
+
+                return CommitHistoryResponse(
+                    repo_name=response_data["repo_name"],
+                    total_commits=response_data["total_commits"],
+                    commits=commits,
+                    activity=response_data["activity"]
+                )
+
             elif commits_response.status_code == 404:
                 # Repo not found or private
                 return CommitHistoryResponse(
@@ -558,11 +589,13 @@ async def get_commit_history(
                     activity={"weeks": []}
                 )
 
+            # Handle other non-success status codes (e.g., 403 rate limit, 500 server error)
+            logger.warning(f"GitHub API returned status {commits_response.status_code} for {owner}/{repo}")
             return CommitHistoryResponse(
                 repo_name=f"{owner}/{repo}",
-                total_commits=len(commits),
-                commits=commits,
-                activity=activity_data
+                total_commits=0,
+                commits=[],
+                activity={"weeks": []}
             )
 
     except httpx.TimeoutException:
