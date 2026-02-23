@@ -67,7 +67,7 @@ services:
     container_name: intern-audit-redis
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "6359:6379"
     volumes:
       - redis_data:/data
     networks:

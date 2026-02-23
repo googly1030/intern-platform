@@ -17,6 +17,7 @@ from app.database import async_session
 from app.models.submission import Submission
 from app.services.scorer import Scorer
 from app.services.websocket_manager import get_websocket_manager
+from app.services.batch_processor import BatchProcessor
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,8 @@ async def process_submission(
     submission_id: str,
     github_url: str,
     hosted_url: Optional[str] = None,
+    rules_text: Optional[str] = None,
+    project_structure_text: Optional[str] = None,
 ):
     """
     Process a submission for scoring.
@@ -73,6 +76,8 @@ async def process_submission(
                 repos_dir=getattr(settings, "REPOS_DIR", "./repos"),
                 api_key=getattr(settings, "ANTHROPIC_API_KEY", None),
                 progress_callback=progress_callback,
+                rules_text=rules_text,
+                project_structure_text=project_structure_text,
             )
 
             # Run scoring (synchronous, so we run in executor)
@@ -136,6 +141,11 @@ async def update_submission_status(
         if error_message:
             submission.error_message = error_message
             logger.error(f"[{submission_id}] Error message: {error_message}")
+
+        # Update batch progress if this submission is part of a batch
+        if submission.batch_id:
+            await BatchProcessor.update_batch_progress(submission.batch_id, db)
+
         await db.commit()
     else:
         logger.warning(f"[{submission_id}] Submission not found in database")
@@ -169,13 +179,25 @@ async def update_submission_results(
         submission.analysis_details = result.get("analysis_details", {})
         submission.processing_time_ms = result.get("processing_time_ms")
         submission.processed_at = datetime.utcnow()
+
+        # Update batch progress if this submission is part of a batch
+        if submission.batch_id:
+            await BatchProcessor.update_batch_progress(submission.batch_id, db)
+            logger.info(f"[{submission_id}] Updated batch {submission.batch_id} progress")
+
         await db.commit()
         logger.info(f"[{submission_id}] Results saved to database")
     else:
         logger.warning(f"[{submission_id}] Submission not found when saving results")
 
 
-def queue_submission(submission_id: str, github_url: str, hosted_url: Optional[str] = None):
+def queue_submission(
+    submission_id: str,
+    github_url: str,
+    hosted_url: Optional[str] = None,
+    rules_text: Optional[str] = None,
+    project_structure_text: Optional[str] = None,
+):
     """
     Queue a submission for background processing.
 
@@ -186,15 +208,19 @@ def queue_submission(submission_id: str, github_url: str, hosted_url: Optional[s
         submission_id: Unique ID of the submission
         github_url: GitHub repository URL
         hosted_url: Optional hosted deployment URL
+        rules_text: Optional custom rules (text or PDF)
+        project_structure_text: Optional project structure (text or PDF)
     """
     # For synchronous processing (development)
-    asyncio.create_task(process_submission(submission_id, github_url, hosted_url))
+    asyncio.create_task(process_submission(submission_id, github_url, hosted_url, rules_text, project_structure_text))
 
 
 def process_submission_sync(
     submission_id: str,
     github_url: str,
     hosted_url: Optional[str] = None,
+    rules_text: Optional[str] = None,
+    project_structure_text: Optional[str] = None,
 ):
     """
     Synchronous wrapper for RQ queue.
@@ -206,8 +232,10 @@ def process_submission_sync(
         submission_id: Unique ID of the submission
         github_url: GitHub repository URL
         hosted_url: Optional hosted deployment URL
+        rules_text: Optional custom rules (text or PDF)
+        project_structure_text: Optional project structure (text or PDF)
     """
-    asyncio.run(process_submission(submission_id, github_url, hosted_url))
+    asyncio.run(process_submission(submission_id, github_url, hosted_url, rules_text, project_structure_text))
 
 
 # For running worker standalone

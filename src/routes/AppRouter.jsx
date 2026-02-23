@@ -7,6 +7,8 @@ import Tasks from '../pages/tasks/Tasks';
 import Settings from '../pages/settings/Settings';
 import Submit from '../pages/submit/Submit';
 import ScoringResults from '../pages/scoring/ScoringResults';
+import Batch from '../pages/batch/Batch';
+import BatchResults from '../pages/batch/BatchResults';
 
 export const router = createBrowserRouter([
   {
@@ -20,6 +22,18 @@ export const router = createBrowserRouter([
       {
         path: 'dashboard',
         element: <Dashboard />,
+      },
+      {
+        path: 'submit',
+        element: <Submit />,
+      },
+      {
+        path: 'batch',
+        element: <Batch />,
+      },
+      {
+        path: 'batch/:batchId/results',
+        element: <BatchResults />,
       },
       {
         path: 'candidates',
@@ -36,10 +50,6 @@ export const router = createBrowserRouter([
       {
         path: 'settings',
         element: <Settings />,
-      },
-      {
-        path: 'submit',
-        element: <Submit />,
       },
       {
         path: 'scoring/:submissionId',

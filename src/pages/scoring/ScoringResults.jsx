@@ -3,6 +3,107 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { getSubmissionStatus, getScoreReport, subscribeToProgress } from '../../services/scoringService';
 import { CodeMetrics, EvidenceSection, ScoreDeductions, EnhancedFlags, InterviewQuestions, UISnapshotsSection } from '../../components/score-report';
 
+// Score category display configuration
+const CATEGORY_CONFIG = {
+  // Traditional categories (when no custom rules)
+  fileSeparation: { label: 'File Separation', category: 'Critical Requirements', color: 'primary', max: 10 },
+  jqueryAjax: { label: 'jQuery AJAX', category: 'Critical Requirements', color: 'primary', max: 10 },
+  bootstrap: { label: 'Bootstrap', category: 'Critical Requirements', color: 'primary', max: 10 },
+  preparedStatements: { label: 'Prepared Statements', category: 'Critical Requirements', color: 'primary', max: 10 },
+  mysql: { label: 'MySQL', category: 'Database', color: 'neon-green', max: 8 },
+  mongodb: { label: 'MongoDB', category: 'Database', color: 'neon-green', max: 8 },
+  redis: { label: 'Redis', category: 'Database', color: 'neon-green', max: 5 },
+  localStorage: { label: 'localStorage', category: 'Database', color: 'neon-green', max: 4 },
+  namingConventions: { label: 'Naming Conventions', category: 'Code Quality', color: 'neon-amber', max: 10 },
+  modularity: { label: 'Modularity', category: 'Code Quality', color: 'neon-amber', max: 10 },
+  errorHandling: { label: 'Error Handling', category: 'Code Quality', color: 'neon-amber', max: 10 },
+  security: { label: 'Security', category: 'Code Quality', color: 'neon-amber', max: 10 },
+  folderStructure: { label: 'Folder Structure', category: 'Structure & Extras', color: 'neon-magenta', max: 10 },
+  frontendTech: { label: 'Frontend Technologies', category: 'Technologies', color: 'secondary', max: 10 },
+  backendTech: { label: 'Backend Technologies', category: 'Technologies', color: 'secondary', max: 10 },
+  databaseTech: { label: 'Database Technologies', category: 'Technologies', color: 'secondary', max: 10 },
+  deployment: { label: 'Deployment', category: 'Deployment', color: 'neon-green', max: 6 },
+  overallScore: { label: 'Overall Score', category: 'Overall', color: 'primary', max: 100 },
+};
+
+// Dynamic score categories component
+const DynamicScoreCategories = ({ scores }) => {
+  if (!scores || Object.keys(scores).length === 0) {
+    return (
+      <div className="border border-white/10 p-6 text-center">
+        <p className="text-gray-500 text-sm font-mono">No score details available</p>
+      </div>
+    );
+  }
+
+  // Group scores by category
+  const groupedScores = Object.entries(scores).reduce((acc, [key, value]) => {
+    // Skip overallScore as it's displayed separately
+    if (key === 'overallScore') return acc;
+
+    const config = CATEGORY_CONFIG[key] || {
+      label: key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()),
+      category: 'Other',
+      color: 'secondary',
+      max: 10
+    };
+
+    const scoreValue = typeof value === 'number' ? value : 0;
+    const category = config.category;
+
+    if (!acc[category]) {
+      acc[category] = {
+        label: category,
+        color: config.color,
+        items: []
+      };
+    }
+
+    acc[category].items.push({
+      key,
+      label: config.label,
+      value: scoreValue,
+      max: config.max,
+      color: config.color
+    });
+
+    return acc;
+  }, {});
+
+  const getScoreColor = (value, max) => {
+    const percentage = (value / max) * 100;
+    if (percentage >= 70) return 'text-neon-green';
+    if (percentage >= 50) return 'text-neon-amber';
+    if (percentage >= 30) return 'text-primary';
+    return 'text-neon-red';
+  };
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+      {Object.entries(groupedScores).map(([categoryName, category]) => (
+        <div key={categoryName} className="border border-white/10 p-6">
+          <h3 className={`text-sm text-${category.color} font-mono mb-4`}>
+            &gt;&gt; {category.label.toUpperCase()}
+          </h3>
+          <div className="space-y-3">
+            {category.items.map((item) => (
+              <div key={item.key} className="flex justify-between items-center">
+                <span className="text-sm text-gray-400 font-mono">{item.label}</span>
+                <span className="text-sm font-mono">
+                  <span className={getScoreColor(item.value, item.max)}>
+                    {item.value}
+                  </span>
+                  <span className="text-gray-500">/{item.max}</span>
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
 const ScoringResults = () => {
   const { submissionId } = useParams();
   const navigate = useNavigate();
@@ -291,115 +392,8 @@ const ScoringResults = () => {
         </div>
       </div>
 
-      {/* Detailed Scores */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-        {/* Critical Requirements */}
-        <div className="border border-white/10 p-6">
-          <h3 className="text-sm text-primary font-mono mb-4">
-            &gt;&gt; CRITICAL REQUIREMENTS (40pts)
-          </h3>
-          <div className="space-y-3">
-            {[
-              { label: 'File Separation', key: 'fileSeparation', max: 10 },
-              { label: 'jQuery AJAX', key: 'jqueryAjax', max: 10 },
-              { label: 'Bootstrap', key: 'bootstrap', max: 10 },
-              { label: 'Prepared Statements', key: 'preparedStatements', max: 10 },
-            ].map((item) => (
-              <div key={item.key} className="flex justify-between items-center">
-                <span className="text-sm text-gray-400 font-mono">{item.label}</span>
-                <span className="text-sm font-mono">
-                  <span className={report.scores?.[item.key] >= item.max * 0.7 ? 'text-neon-green' : 'text-neon-red'}>
-                    {report.scores?.[item.key] || 0}
-                  </span>
-                  <span className="text-gray-500">/{item.max}</span>
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Database Implementation */}
-        <div className="border border-white/10 p-6">
-          <h3 className="text-sm text-neon-green font-mono mb-4">
-            &gt;&gt; DATABASE (25pts)
-          </h3>
-          <div className="space-y-3">
-            {[
-              { label: 'MySQL', key: 'mysql', max: 8 },
-              { label: 'MongoDB', key: 'mongodb', max: 8 },
-              { label: 'Redis', key: 'redis', max: 5 },
-              { label: 'localStorage', key: 'localStorage', max: 4 },
-            ].map((item) => (
-              <div key={item.key} className="flex justify-between items-center">
-                <span className="text-sm text-gray-400 font-mono">{item.label}</span>
-                <span className="text-sm font-mono">
-                  <span className={report.scores?.[item.key] >= item.max * 0.5 ? 'text-neon-green' : 'text-neon-red'}>
-                    {report.scores?.[item.key] || 0}
-                  </span>
-                  <span className="text-gray-500">/{item.max}</span>
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Code Quality */}
-        <div className="border border-white/10 p-6">
-          <h3 className="text-sm text-neon-amber font-mono mb-4">
-            &gt;&gt; CODE QUALITY (20pts)
-          </h3>
-          <div className="space-y-3">
-            {[
-              { label: 'Naming Conventions', key: 'namingConventions', max: 5 },
-              { label: 'Modularity', key: 'modularity', max: 5 },
-              { label: 'Error Handling', key: 'errorHandling', max: 5 },
-              { label: 'Security', key: 'security', max: 5 },
-            ].map((item) => (
-              <div key={item.key} className="flex justify-between items-center">
-                <span className="text-sm text-gray-400 font-mono">{item.label}</span>
-                <span className="text-sm font-mono">
-                  <span className={report.scores?.[item.key] >= 3 ? 'text-neon-green' : 'text-neon-amber'}>
-                    {report.scores?.[item.key] || 0}
-                  </span>
-                  <span className="text-gray-500">/{item.max}</span>
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Structure & Extras */}
-        <div className="border border-white/10 p-6">
-          <h3 className="text-sm text-neon-magenta font-mono mb-4">
-            &gt;&gt; STRUCTURE & EXTRAS (15pts)
-          </h3>
-          <div className="space-y-3">
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-400 font-mono">Folder Structure</span>
-              <span className="text-sm font-mono">
-                <span className={report.scores?.folderStructure >= 7 ? 'text-neon-green' : 'text-neon-amber'}>
-                  {report.scores?.folderStructure || 0}
-                </span>
-                <span className="text-gray-500">/10</span>
-              </span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-400 font-mono">Deployment</span>
-              <span className="text-sm font-mono">
-                <span className="text-neon-green">{report.scores?.deployment || 0}</span>
-                <span className="text-gray-500">/3</span>
-              </span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-400 font-mono">Bonus Features</span>
-              <span className="text-sm font-mono">
-                <span className="text-neon-green">{report.scores?.bonusFeatures || 0}</span>
-                <span className="text-gray-500">/2</span>
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
+      {/* Detailed Scores - Dynamic */}
+      <DynamicScoreCategories scores={report.scores || {}} />
 
       {/* NEW: Score Deductions - Why marks were lost */}
       <ScoreDeductions

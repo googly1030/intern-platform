@@ -35,14 +35,16 @@ class CodeAnalyzer:
         "navbar",
     ]
 
-    def __init__(self, repo_path: str):
+    def __init__(self, repo_path: str, ai_reviewer=None):
         """
         Initialize CodeAnalyzer.
 
         Args:
             repo_path: Path to the cloned repository
+            ai_reviewer: Optional AIReviewer instance for intelligent analysis
         """
         self.repo_path = repo_path
+        self.ai_reviewer = ai_reviewer
         self.analysis_result = {
             "folderStructure": {},
             "fileSeparation": {},
@@ -339,17 +341,22 @@ class CodeAnalyzer:
         return result
 
     def analyze_databases(self) -> dict:
-        """Check which databases are used"""
+        """
+        Check which databases are used using regex + AI analysis.
+        First pass: Fast regex patterns for common database connections.
+        Second pass: AI-based detection if no databases were found.
+        """
         result = {
             "mysql": {"detected": False, "score": 0, "evidence": []},
             "mongodb": {"detected": False, "score": 0, "evidence": []},
             "redis": {"detected": False, "score": 0, "evidence": []},
         }
 
+        # First pass: Regex-based detection for PHP
         php_files = self._get_files_by_extension(".php")
-        all_content = ""
+        all_php_content = ""
         for file in php_files:
-            all_content += self._read_file(file) + "\n"
+            all_php_content += self._read_file(file) + "\n"
 
         # MySQL detection
         mysql_patterns = [
@@ -359,7 +366,7 @@ class CodeAnalyzer:
             (r'\$conn\s*=\s*mysqli_connect', 'mysqli connection'),
         ]
         for pattern, name in mysql_patterns:
-            if re.search(pattern, all_content):
+            if re.search(pattern, all_php_content):
                 result["mysql"]["detected"] = True
                 result["mysql"]["evidence"].append(name)
         if result["mysql"]["detected"]:
@@ -373,7 +380,7 @@ class CodeAnalyzer:
             (r'\$mongo\s*=', 'mongo variable'),
         ]
         for pattern, name in mongodb_patterns:
-            if re.search(pattern, all_content):
+            if re.search(pattern, all_php_content):
                 result["mongodb"]["detected"] = True
                 result["mongodb"]["evidence"].append(name)
         if result["mongodb"]["detected"]:
@@ -387,14 +394,129 @@ class CodeAnalyzer:
             (r'\$redis\s*=\s*new\s+Redis', 'redis variable'),
         ]
         for pattern, name in redis_patterns:
-            if re.search(pattern, all_content):
+            if re.search(pattern, all_php_content):
                 result["redis"]["detected"] = True
                 result["redis"]["evidence"].append(name)
         if result["redis"]["detected"]:
             result["redis"]["score"] = 5
 
+        # Check Node.js patterns (package.json, .js files)
+        js_files = self._get_files_by_extension(".js")
+        all_js_content = ""
+        for file in js_files:
+            all_js_content += self._read_file(file) + "\n"
+
+        # Node.js MySQL patterns
+        if re.search(r'require\s*\(\s*["\']mysql2?["\']|import.*from\s+["\']mysql2?', all_js_content):
+            result["mysql"]["detected"] = True
+            result["mysql"]["score"] = 8
+            result["mysql"]["evidence"].append("mysql/mysql2 import (Node.js)")
+
+        # Node.js MongoDB patterns
+        if re.search(r'require\s*\(\s*["\']mongodb["\']|require\s*\(\s*["\']mongoose["\']|import.*from\s+["\']mongodb', all_js_content):
+            result["mongodb"]["detected"] = True
+            result["mongodb"]["score"] = 8
+            result["mongodb"]["evidence"].append("mongodb/mongoose import (Node.js)")
+
+        # Node.js Redis patterns
+        if re.search(r'require\s*\(\s*["\']redis["\']|require\s*\(\s*["\']ioredis["\']|import.*from\s+["\']redis', all_js_content):
+            result["redis"]["detected"] = True
+            result["redis"]["score"] = 5
+            result["redis"]["evidence"].append("redis/ioredis import (Node.js)")
+
+        # Check Python patterns
+        py_files = self._get_files_by_extension(".py")
+        all_py_content = ""
+        for file in py_files:
+            all_py_content += self._read_file(file) + "\n"
+
+        # Python MySQL patterns
+        if re.search(r'import\s+mysql|from\s+mysql|pymysql|mysql\.connector', all_py_content):
+            result["mysql"]["detected"] = True
+            result["mysql"]["score"] = 8
+            result["mysql"]["evidence"].append("MySQL import (Python)")
+
+        # Python MongoDB patterns
+        if re.search(r'import\s+pymongo|from\s+pymongo|import\s+motor|from\s+motor', all_py_content):
+            result["mongodb"]["detected"] = True
+            result["mongodb"]["score"] = 8
+            result["mongodb"]["evidence"].append("pymongo/motor import (Python)")
+
+        # Python Redis patterns
+        if re.search(r'import\s+redis|from\s+redis', all_py_content):
+            result["redis"]["detected"] = True
+            result["redis"]["score"] = 5
+            result["redis"]["evidence"].append("redis import (Python)")
+
+        # Second pass: AI detection if no databases were found
+        # Only trigger AI if ALL databases are undetected to avoid unnecessary API calls
+        if not any(db["detected"] for db in result.values()) and self.ai_reviewer:
+            logger.info("No databases detected by regex, attempting AI detection")
+            ai_databases = self._ai_detect_databases()
+            for db_name, detection in ai_databases.items():
+                if db_name in result and detection.get("detected"):
+                    result[db_name]["detected"] = True
+                    result[db_name]["score"] = detection.get("score", 5)
+                    result[db_name]["evidence"].extend(detection.get("evidence", []))
+                    logger.info(f"AI detected {db_name}: {detection.get('evidence', [])}")
+
         self.analysis_result["databases"] = result
         return result
+
+    def _ai_detect_databases(self) -> dict:
+        """
+        Use AI to detect databases when regex patterns fail.
+
+        Returns:
+            dict with mysql, mongodb, redis detection results
+        """
+        if not self.ai_reviewer:
+            return {
+                "mysql": {"detected": False, "score": 0, "evidence": ["AI reviewer not available"]},
+                "mongodb": {"detected": False, "score": 0, "evidence": ["AI reviewer not available"]},
+                "redis": {"detected": False, "score": 0, "evidence": ["AI reviewer not available"]},
+            }
+
+        # Collect code files for AI analysis
+        code_files = {}
+        config_files = {}
+        file_list = []
+
+        for root, _, filenames in os.walk(self.repo_path):
+            for filename in filenames:
+                file_path = os.path.join(root, filename)
+                relative_path = os.path.relpath(file_path, self.repo_path)
+                file_list.append(relative_path)
+
+                # Skip certain files
+                if any(x in filename.lower() for x in ["node_modules", ".git", "vendor", "__pycache__"]):
+                    continue
+
+                # Identify config files
+                if any(x in filename.lower() for x in [".env", "config", "package.json", "requirements.txt", "composer.json"]):
+                    content = self._read_file(file_path)
+                    if content:
+                        config_files[relative_path] = content
+                # Read code files (limit to common extensions)
+                elif any(filename.endswith(ext) for ext in [".php", ".js", ".py", ".ts", ".go", ".java"]):
+                    content = self._read_file(file_path)
+                    if content:
+                        code_files[relative_path] = content
+
+        try:
+            ai_result = self.ai_reviewer.detect_databases(
+                code_files=code_files,
+                file_list=file_list,
+                config_files=config_files,
+            )
+            return ai_result
+        except Exception as e:
+            logger.error(f"AI database detection failed: {e}", exc_info=True)
+            return {
+                "mysql": {"detected": False, "score": 0, "evidence": [f"AI detection failed: {str(e)}"]},
+                "mongodb": {"detected": False, "score": 0, "evidence": [f"AI detection failed: {str(e)}"]},
+                "redis": {"detected": False, "score": 0, "evidence": [f"AI detection failed: {str(e)}"]},
+            }
 
     def analyze_localStorage(self) -> dict:
         """Check if localStorage is used for session management"""

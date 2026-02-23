@@ -13,7 +13,7 @@ from app.config import settings
 from app.database import Base
 
 # Import models so Alembic can detect them
-from app.models import Submission, Task  # noqa
+from app.models import Submission, Task, SubmissionBatch  # noqa
 
 config = context.config
 
@@ -49,16 +49,11 @@ def do_run_migrations(connection: Connection) -> None:
 
 async def run_async_migrations() -> None:
     """Run migrations in async mode."""
-    connectable = async_engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-    )
+    # Use the async engine from database module
+    from app.database import engine
 
-    async with connectable.connect() as connection:
+    async with engine.connect() as connection:
         await connection.run_sync(do_run_migrations)
-
-    await connectable.dispose()
 
 
 def run_migrations_online() -> None:

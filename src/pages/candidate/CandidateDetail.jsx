@@ -90,6 +90,54 @@ const CandidateDetail = () => {
   const buildCandidateData = () => {
     if (!submission) return sampleCandidate;
 
+    // Build scores dynamically from API response
+    const buildScores = () => {
+      if (!report?.scores) return sampleCandidate.scores;
+
+      const colorMap = {
+        'primary': 'primary',
+        'neon-green': 'neon-green',
+        'neon-amber': 'neon-amber',
+        'secondary': 'secondary',
+        'neon-red': 'neon-red',
+      };
+
+      // Dynamic score labels based on key names
+      const formatLabel = (key) => {
+        const labelMap = {
+          namingConventions: 'Naming_Conventions',
+          modularity: 'Modularity',
+          errorHandling: 'Error_Handling',
+          security: 'Security',
+          folderStructure: 'Folder_Structure',
+          fileSeparation: 'File_Separation',
+          deployment: 'Deployment',
+          frontendTech: 'Frontend_Tech',
+          backendTech: 'Backend_Tech',
+          databaseTech: 'Database_Tech',
+        };
+        return labelMap[key] || key.replace(/([A-Z])/g, '_$1').toUpperCase();
+      };
+
+      const getColor = (key, value) => {
+        // Determine color based on score value
+        if (value >= 8) return 'neon-green';
+        if (value >= 6) return 'primary';
+        if (value >= 4) return 'neon-amber';
+        return 'neon-red';
+      };
+
+      // Convert scores object to array format
+      return Object.entries(report.scores)
+        .filter(([key]) => key !== 'overallScore') // Skip overallScore as it's shown separately
+        .map(([key, value]) => ({
+          label: formatLabel(key),
+          value: typeof value === 'number' ? value : 0,
+          color: getColor(key, typeof value === 'number' ? value : 0),
+        }))
+        .slice(0, 8); // Limit to 8 scores for display
+    };
+
     return {
       id: submission.id,
       name: submission.candidate_name,
@@ -97,18 +145,7 @@ const CandidateDetail = () => {
       github_url: submission.github_url,
       hosted_url: submission.hosted_url,
       role: 'Intern Candidate',
-      scores: report?.scores ? [
-        { label: 'Folder_Structure', value: report.scores.folderStructure || 0, color: 'neon-green' },
-        { label: 'File_Separation', value: report.scores.fileSeparation || 0, color: 'primary' },
-        { label: 'jQuery_AJAX', value: report.scores.jqueryAjax || 0, color: 'primary' },
-        { label: 'Bootstrap', value: report.scores.bootstrap || 0, color: 'neon-amber' },
-        { label: 'Prepared_Stmts', value: report.scores.preparedStatements || 0, color: 'neon-green' },
-        { label: 'Database_Usage', value: report.scores.databases || 0, color: 'primary' },
-        { label: 'LocalStorage', value: report.scores.localStorage || 0, color: 'secondary' },
-        { label: 'Security', value: report.scores.security || 0, color: 'neon-amber' },
-        { label: 'Code_Quality', value: report.scores.codeQuality || 0, color: 'neon-green' },
-        { label: 'Deployment', value: report.scores.deployment || 0, color: 'primary' },
-      ] : sampleCandidate.scores,
+      scores: buildScores(),
       flags: report?.flags?.map(flag => ({
         type: flag.includes('AI_GENERATED') ? 'error' : 'warning',
         icon: flag.includes('AI') ? 'smart_toy' : 'warning',

@@ -44,6 +44,10 @@ class SubmissionCreate(BaseModel):
     hosted_url: Optional[str] = None
     video_url: Optional[str] = None
     task_id: Optional[str] = None
+    # Optional custom rules (text or base64 encoded PDF content)
+    rules_text: Optional[str] = None
+    # Optional project structure (text or base64 encoded PDF content)
+    project_structure_text: Optional[str] = None
 
 
 class SubmissionResponse(BaseModel):
@@ -123,6 +127,8 @@ async def create_submission(
         hosted_url=submission_data.hosted_url,
         video_url=submission_data.video_url,
         task_id=submission_data.task_id,
+        rules_text=submission_data.rules_text,
+        project_structure_text=submission_data.project_structure_text,
         status="pending",
     )
 
@@ -137,6 +143,8 @@ async def create_submission(
         submission.id,
         submission.github_url,
         submission.hosted_url,
+        submission.rules_text,
+        submission.project_structure_text,
     )
 
     return SubmissionResponse(
@@ -410,6 +418,8 @@ async def trigger_scoring(
         submission.id,
         submission.github_url,
         submission.hosted_url,
+        submission.rules_text,
+        submission.project_structure_text,
     )
 
     return SubmissionResponse(

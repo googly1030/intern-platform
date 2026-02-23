@@ -1,18 +1,4 @@
-// Max points for each category
-const MAX_SCORES = {
-  'Folder_Structure': 10,
-  'File_Separation': 10,
-  'jQuery_AJAX': 10,
-  'Bootstrap': 10,
-  'Prepared_Stmts': 10,
-  'Database_Usage': 21,  // MySQL(8) + MongoDB(8) + Redis(5)
-  'LocalStorage': 4,
-  'Security': 5,
-  'Code_Quality': 20,  // AI review scores
-  'Deployment': 3,
-};
-
-const SkillBar = ({ label, value, color = 'primary' }) => {
+const SkillBar = ({ label, value, max = 10, color = 'primary' }) => {
   const colorMap = {
     'primary': 'bg-primary shadow-[0_0_5px_#00ffff]',
     'neon-green': 'bg-neon-green shadow-[0_0_5px_#00ff41]',
@@ -29,19 +15,18 @@ const SkillBar = ({ label, value, color = 'primary' }) => {
     'neon-red': 'text-neon-red',
   };
 
-  const maxScore = MAX_SCORES[label] || 10;
-  const percentage = Math.round((value / maxScore) * 100);
+  const percentage = Math.round((value / max) * 100);
 
   return (
     <div className="space-y-1">
       <div className="flex justify-between text-[10px] font-mono uppercase">
         <span className="text-white">{label}</span>
-        <span className={textMap[color]}>{value}/{maxScore}</span>
+        <span className={textMap[color]}>{value}/{max}</span>
       </div>
       <div className="h-1.5 w-full bg-gray-800 relative overflow-hidden">
         <div
           className={`absolute h-full ${colorMap[color]}`}
-          style={{ width: `${percentage}%` }}
+          style={{ width: `${Math.min(percentage, 100)}%` }}
         />
       </div>
     </div>

@@ -197,6 +197,8 @@ export const submitForScoring = async (data) => {
     github_url: data.github_url,
     hosted_url: data.hosted_url || null,
     video_url: data.video_url || null,
+    rules_text: data.rules_text || null,
+    project_structure_text: data.project_structure_text || null,
   });
 };
 

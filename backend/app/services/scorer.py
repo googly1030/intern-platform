@@ -57,6 +57,8 @@ class Scorer:
         repos_dir: Optional[str] = None,
         api_key: Optional[str] = None,
         progress_callback: Optional[Callable[[str, str, int, str], None]] = None,
+        rules_text: Optional[str] = None,
+        project_structure_text: Optional[str] = None,
     ):
         """
         Initialize Scorer.
@@ -66,11 +68,15 @@ class Scorer:
             api_key: Anthropic API key for AI review
             progress_callback: Optional callback for progress updates
                 Callback signature: (submission_id, stage, progress_percent, message)
+            rules_text: Optional custom rules (text or PDF content)
+            project_structure_text: Optional project structure (text or PDF content)
         """
         self.repo_cloner = RepoCloner(repos_dir)
         self.ai_reviewer = AIReviewer(api_key)
         self.deployment_checker = DeploymentChecker()
         self.progress_callback = progress_callback
+        self.rules_text = rules_text
+        self.project_structure_text = project_structure_text
         logger.info("Scorer initialized")
 
     def _report_progress(self, submission_id: str, stage: str, progress: int, message: str = ""):
@@ -147,7 +153,7 @@ class Scorer:
             self._report_progress(submission_id, "analyzing", 40, "Analyzing code structure...")
             logger.info(f"[{submission_id}] Starting code analysis")
             analysis_start = time.time()
-            analyzer = CodeAnalyzer(repo_path)
+            analyzer = CodeAnalyzer(repo_path, ai_reviewer=self.ai_reviewer)
             analysis = analyzer.analyze_all()
             analysis_time = (time.time() - analysis_start) * 1000
             logger.info(f"[{submission_id}] Code analysis completed in {analysis_time:.0f}ms")
@@ -159,17 +165,20 @@ class Scorer:
             code_files = self._get_code_files(repo_path)
             logger.info(f"[{submission_id}] Found {len(code_files)} code files")
 
-            # Step 5: AI review (70%)
-            self._report_progress(submission_id, "ai_review", 70, "Running AI code review...")
-            logger.info(f"[{submission_id}] Starting AI code quality review")
+            # Step 5: AI evaluation (70%)
+            self._report_progress(submission_id, "ai_review", 70, "Running AI evaluation...")
+            logger.info(f"[{submission_id}] Starting AI evaluation")
             ai_start = time.time()
-            ai_quality = self.ai_reviewer.review_code_quality(code_files, analysis)
-            ai_time = (time.time() - ai_start) * 1000
-            logger.info(f"[{submission_id}] AI review completed in {ai_time:.0f}ms")
 
-            # Check if AI review was a fallback
-            if ai_quality.get("_fallback"):
-                logger.warning(f"[{submission_id}] AI review used fallback: {ai_quality.get('_fallback_reason')}")
+            # Use AI for comprehensive evaluation
+            ai_evaluation = self.ai_reviewer.review_code_quality(
+                code_files,
+                analysis,
+                rules_text=self.rules_text,
+                project_structure_text=self.project_structure_text,
+            )
+            ai_time = (time.time() - ai_start) * 1000
+            logger.info(f"[{submission_id}] AI evaluation completed in {ai_time:.0f}ms")
 
             # Step 6: AI generation detection (80%)
             self._report_progress(submission_id, "ai_detection", 80, "Detecting AI-generated code...")
@@ -193,7 +202,6 @@ class Scorer:
                 try:
                     screenshots = self.deployment_checker.capture_screenshots_sync(hosted_url, submission_id)
                     result["screenshots"] = screenshots
-                    # Also store in deployment_result for reference
                     deployment_result["screenshots"] = screenshots
                     logger.info(f"[{submission_id}] Screenshots captured: {list(screenshots.keys())}")
                 except Exception as e:
@@ -203,13 +211,24 @@ class Scorer:
             # Step 8: Calculate scores (90%)
             self._report_progress(submission_id, "scoring", 90, "Calculating final scores...")
             logger.info(f"[{submission_id}] Calculating scores")
-            scores = self._calculate_scores(analysis, ai_quality)
-            scores["deployment"] = deployment_result["deployment_score"]
+
+            # If custom rules were provided, use AI scores primarily
+            # If no custom rules, use the traditional scoring system
+            if self.rules_text:
+                # Custom rules: Use AI's evaluation directly
+                scores = self._calculate_custom_scores(ai_evaluation, deployment_result)
+            else:
+                # No custom rules: Use traditional analysis-based scoring
+                scores = self._calculate_traditional_scores(analysis, ai_evaluation, deployment_result)
+
             result["scores"] = scores
 
             # Step 9: Generate flags
             logger.info(f"[{submission_id}] Generating flags")
-            flags = self._generate_flags(analysis, ai_detection)
+            if self.rules_text:
+                flags = self._generate_custom_flags(ai_evaluation, ai_detection)
+            else:
+                flags = self._generate_traditional_flags(analysis, ai_detection)
             flags.extend(deployment_result["flags"])
             result["flags"] = flags
             logger.info(f"[{submission_id}] Flags: {flags}")
@@ -228,8 +247,8 @@ class Scorer:
             logger.info(f"[{submission_id}] Grade: {result['grade']} - {result['recommendation']}")
 
             # Step 12: Get strengths and weaknesses
-            result["strengths"] = self._get_strengths(analysis, ai_quality, deployment_result)
-            result["weaknesses"] = self._get_weaknesses(analysis, ai_quality, deployment_result)
+            result["strengths"] = self._get_strengths(analysis, ai_evaluation, deployment_result)
+            result["weaknesses"] = self._get_weaknesses(analysis, ai_evaluation, deployment_result)
 
             result["status"] = "completed"
             result["processing_time_ms"] = int((time.time() - start_time) * 1000)
@@ -246,77 +265,163 @@ class Scorer:
 
         return result
 
-    def _calculate_scores(self, analysis: dict, ai_quality: dict) -> dict:
-        """Calculate individual category scores"""
+    def _calculate_custom_scores(self, ai_evaluation: dict, deployment_result: dict) -> dict:
+        """Calculate scores based on AI evaluation for custom rules"""
         scores = {}
 
-        # Critical Requirements (40 points total)
-        scores["fileSeparation"] = analysis.get("fileSeparation", {}).get("score", 0)
-        scores["jqueryAjax"] = analysis.get("jqueryAjax", {}).get("score", 0)
-        scores["bootstrap"] = analysis.get("bootstrap", {}).get("score", 0)
-        scores["preparedStatements"] = analysis.get("preparedStatements", {}).get("score", 0)
+        # Use overall score from AI if provided, otherwise calculate from categories
+        if "overallScore" in ai_evaluation:
+            scores["overallScore"] = ai_evaluation["overallScore"]
+        else:
+            # Calculate from category scores (0-5 each)
+            total = 0
+            count = 0
+            for category in ["namingConventions", "modularity", "errorHandling", "security"]:
+                if category in ai_evaluation:
+                    cat_data = ai_evaluation[category]
+                    if isinstance(cat_data, dict) and "score" in cat_data:
+                        total += cat_data["score"]
+                        count += 1
+            # Convert average to 0-100 scale
+            scores["overallScore"] = int((total / max(count, 1) / 5) * 100) if count > 0 else 50
 
-        # Database Implementation (25 points total)
-        db = analysis.get("databases", {})
-        scores["mysql"] = db.get("mysql", {}).get("score", 0)
-        scores["mongodb"] = db.get("mongodb", {}).get("score", 0)
-        scores["redis"] = db.get("redis", {}).get("score", 0)
-        scores["localStorage"] = analysis.get("localStorage", {}).get("score", 0)
+        # Store individual category scores (convert to 0-10 scale)
+        for category in ["namingConventions", "modularity", "errorHandling", "security"]:
+            if category in ai_evaluation:
+                cat_data = ai_evaluation[category]
+                if isinstance(cat_data, dict) and "score" in cat_data:
+                    scores[category] = cat_data["score"] * 2  # Convert 0-5 to 0-10
+                else:
+                    scores[category] = 0
+            else:
+                scores[category] = 0
 
-        # Code Quality (20 points total)
-        quality = ai_quality if isinstance(ai_quality, dict) else {}
-        scores["namingConventions"] = quality.get("namingConventions", {}).get("score", 3)
-        scores["modularity"] = quality.get("modularity", {}).get("score", 3)
-        scores["errorHandling"] = quality.get("errorHandling", {}).get("score", 3)
-        scores["security"] = quality.get("security", {}).get("score", 3)
-
-        # Folder Structure (10 points)
-        scores["folderStructure"] = analysis.get("folderStructure", {}).get("score", 0)
-
-        # Deployment & Extras (5 points)
-        scores["deployment"] = 0  # Will be updated if hosted URL is valid
-        scores["bonusFeatures"] = 0  # Will be updated based on extra features
+        # Deployment score
+        scores["deployment"] = deployment_result.get("deployment_score", 0)
 
         return scores
 
+    def _calculate_traditional_scores(self, analysis: dict, ai_quality: dict, deployment_result: dict) -> dict:
+        """Calculate scores using traditional analysis-based approach"""
+        scores = {}
+
+        # Code Quality from AI (20 points total)
+        quality = ai_quality if isinstance(ai_quality, dict) else {}
+        scores["namingConventions"] = quality.get("namingConventions", {}).get("score", 3) * 2  # 0-10
+        scores["modularity"] = quality.get("modularity", {}).get("score", 3) * 2
+        scores["errorHandling"] = quality.get("errorHandling", {}).get("score", 3) * 2
+        scores["security"] = quality.get("security", {}).get("score", 3) * 2
+
+        # Project Organization (30 points)
+        scores["folderStructure"] = analysis.get("folderStructure", {}).get("score", 0)
+        scores["fileSeparation"] = analysis.get("fileSeparation", {}).get("score", 0)
+
+        # Technologies Used (30 points)
+        scores["frontendTech"] = self._analyze_frontend_tech(analysis)
+        scores["backendTech"] = self._analyze_backend_tech(analysis)
+        scores["databaseTech"] = self._analyze_database_tech(analysis)
+
+        # Deployment (20 points)
+        scores["deployment"] = deployment_result.get("deployment_score", 0) * 2
+
+        return scores
+
+    def _analyze_frontend_tech(self, analysis: dict) -> int:
+        """Analyze frontend technology usage (0-10)"""
+        score = 0
+
+        # Check for modern frontend frameworks
+        if analysis.get("bootstrap", {}).get("bootstrap_linked"):
+            score += 3
+
+        # Check for AJAX usage
+        if analysis.get("jqueryAjax", {}).get("ajax_calls", 0) > 0:
+            score += 3
+
+        # Check for localStorage
+        if analysis.get("localStorage", {}).get("detected"):
+            score += 2
+
+        # Good file separation
+        if analysis.get("fileSeparation", {}).get("score", 0) >= 7:
+            score += 2
+
+        return min(score, 10)
+
+    def _analyze_backend_tech(self, analysis: dict) -> int:
+        """Analyze backend technology usage (0-10)"""
+        score = 0
+
+        # Check for prepared statements (security)
+        if analysis.get("preparedStatements", {}).get("prepared_statements", 0) > 0:
+            score += 5
+
+        # Check for security measures
+        if analysis.get("security", {}).get("password_hashing"):
+            score += 3
+
+        if analysis.get("security", {}).get("input_sanitization"):
+            score += 2
+
+        return min(score, 10)
+
+    def _analyze_database_tech(self, analysis: dict) -> int:
+        """Analyze database technology usage (0-10)"""
+        score = 0
+        db = analysis.get("databases", {})
+
+        # Give points for any database usage
+        if db.get("mysql", {}).get("detected"):
+            score += 4
+        if db.get("mongodb", {}).get("detected"):
+            score += 3
+        if db.get("redis", {}).get("detected"):
+            score += 2
+        if db.get("localStorage", {}).get("detected"):
+            score += 1
+
+        return min(score, 10)
+
     def _calculate_overall_score(self, scores: dict) -> int:
         """Calculate overall score from category scores"""
-        # Critical Requirements (40%)
-        critical = (
-            scores.get("fileSeparation", 0) +
-            scores.get("jqueryAjax", 0) +
-            scores.get("bootstrap", 0) +
-            scores.get("preparedStatements", 0)
-        )
+        # If AI provided an overall score (custom rules), use it
+        if "overallScore" in scores:
+            return min(100, max(0, int(scores["overallScore"])))
 
-        # Database Implementation (25%)
-        database = (
-            scores.get("mysql", 0) +
-            scores.get("mongodb", 0) +
-            scores.get("redis", 0) +
-            scores.get("localStorage", 0)
-        )
+        # Otherwise, calculate from category scores
+        total = sum(scores.values())
 
-        # Code Quality (20%)
-        quality = (
-            scores.get("namingConventions", 0) +
-            scores.get("modularity", 0) +
-            scores.get("errorHandling", 0) +
-            scores.get("security", 0)
-        )
+        # Normalize to 100 based on number of categories
+        if total > 0:
+            max_score = len(scores) * 10  # Each category max 10
+            overall = int((total / max_score) * 100)
+        else:
+            overall = 0
 
-        # Folder Structure (10%)
-        structure = scores.get("folderStructure", 0)
+        return min(100, max(0, overall))
 
-        # Deployment & Extras (5%)
-        extras = scores.get("deployment", 0) + scores.get("bonusFeatures", 0)
+    def _generate_custom_flags(self, ai_evaluation: dict, ai_detection: dict) -> list:
+        """Generate flags based on custom AI evaluation"""
+        flags = []
 
-        # Total (already weighted by point values)
-        total = critical + database + quality + structure + extras
+        # AI generation risk flag
+        if ai_detection.get("risk_score", 0) > 0.6:
+            flags.append("AI_GENERATED_HIGH")
 
-        return min(100, max(0, int(total)))
+        # Low score flags from AI evaluation
+        for category in ["namingConventions", "modularity", "errorHandling", "security"]:
+            if category in ai_evaluation:
+                cat_data = ai_evaluation[category]
+                if isinstance(cat_data, dict):
+                    score = cat_data.get("score", 5)
+                    if score <= 2:
+                        flags.append(f"POOR_{category.upper()}")
+                    elif score == 0:
+                        flags.append(f"CRITICAL_{category.upper()}")
 
-    def _generate_flags(self, analysis: dict, ai_detection: dict) -> list:
+        return flags
+
+    def _generate_traditional_flags(self, analysis: dict, ai_detection: dict) -> list:
         """Generate flags based on analysis"""
         flags = []
 
@@ -355,80 +460,85 @@ class Scorer:
         """Identify strengths from analysis"""
         strengths = []
 
+        # Always use AI-provided strengths first
         if ai_quality and isinstance(ai_quality, dict):
             strengths.extend(ai_quality.get("strengths", []))
 
-        # Add technical strengths
+        # If custom rules were provided, rely primarily on AI feedback
+        if self.rules_text:
+            # Add deployment strength if applicable
+            if deployment_result and deployment_result.get("hosted", {}).get("valid"):
+                strengths.append("Project successfully deployed and accessible online")
+            return strengths[:5]
+
+        # Traditional technical strengths (only when no custom rules)
         if analysis.get("fileSeparation", {}).get("score", 0) == 10:
-            strengths.append("Perfect file separation (HTML/CSS/JS/PHP)")
+            strengths.append("Excellent file organization - proper separation of concerns")
 
         if analysis.get("preparedStatements", {}).get("prepared_statements", 0) > 0:
-            strengths.append("Uses prepared statements for SQL")
+            strengths.append("Uses prepared statements for secure database queries")
 
         if analysis.get("jqueryAjax", {}).get("ajax_calls", 0) > 0:
-            strengths.append("Implements jQuery AJAX for backend calls")
+            strengths.append("Implements AJAX for asynchronous backend communication")
 
         if analysis.get("bootstrap", {}).get("bootstrap_linked"):
-            strengths.append("Uses Bootstrap for responsive design")
+            strengths.append("Uses CSS framework for responsive design")
 
-        if analysis.get("databases", {}).get("mysql", {}).get("detected"):
-            strengths.append("MySQL database implemented")
+        # Database strengths
+        db = analysis.get("databases", {})
+        if db.get("mysql", {}).get("detected"):
+            strengths.append("SQL database implemented")
+        if db.get("mongodb", {}).get("detected"):
+            strengths.append("NoSQL database implemented")
+        if db.get("redis", {}).get("detected"):
+            strengths.append("Caching layer implemented (Redis)")
 
-        if analysis.get("databases", {}).get("mongodb", {}).get("detected"):
-            strengths.append("MongoDB database implemented")
-
-        if analysis.get("databases", {}).get("redis", {}).get("detected"):
-            strengths.append("Redis for session management")
-
-        if analysis.get("localStorage", {}).get("detected"):
-            strengths.append("localStorage for frontend sessions")
-
-        # Add deployment strengths
+        # Deployment strengths
         if deployment_result:
             if deployment_result.get("hosted", {}).get("valid"):
                 strengths.append("Project successfully deployed and accessible online")
             if deployment_result.get("video", {}).get("valid"):
                 strengths.append("Video demonstration provided")
 
-        return strengths[:5]  # Limit to 5
+        return strengths[:5]
 
     def _get_weaknesses(self, analysis: dict, ai_quality: dict, deployment_result: dict = None) -> list:
         """Identify weaknesses from analysis"""
         weaknesses = []
 
+        # Always use AI-provided weaknesses first
         if ai_quality and isinstance(ai_quality, dict):
             weaknesses.extend(ai_quality.get("weaknesses", []))
 
-        # Add technical weaknesses
+        # If custom rules were provided, rely primarily on AI feedback
+        if self.rules_text:
+            # Add deployment weakness if applicable
+            if deployment_result and not deployment_result.get("hosted", {}).get("valid"):
+                weaknesses.append("No working deployment provided")
+            return weaknesses[:5]
+
+        # Traditional technical weaknesses (only when no custom rules)
         if analysis.get("fileSeparation", {}).get("score", 0) < 7:
-            weaknesses.append("Code mixing (HTML/CSS/JS/PHP in same files)")
+            weaknesses.append("Poor code organization - mixing concerns in single files")
 
         if analysis.get("jqueryAjax", {}).get("form_submissions", 0) > 0:
-            weaknesses.append("Uses form submission instead of AJAX")
+            weaknesses.append("Uses traditional form submission instead of AJAX")
 
-        if analysis.get("bootstrap", {}).get("score", 0) < 7:
-            weaknesses.append("Bootstrap not properly implemented")
+        if analysis.get("bootstrap", {}).get("score", 0) < 4:
+            weaknesses.append("No CSS framework used for styling")
 
-        if not analysis.get("databases", {}).get("mysql", {}).get("detected"):
-            weaknesses.append("MySQL database not implemented")
+        # Security weaknesses
+        if "SQL_INJECTION_RISK" in analysis.get("preparedStatements", {}).get("issues", []):
+            weaknesses.append("Potential SQL injection vulnerability - no prepared statements")
 
-        if not analysis.get("databases", {}).get("mongodb", {}).get("detected"):
-            weaknesses.append("MongoDB database not implemented")
-
-        if not analysis.get("databases", {}).get("redis", {}).get("detected"):
-            weaknesses.append("Redis not implemented")
-
-        if not analysis.get("localStorage", {}).get("detected"):
-            weaknesses.append("localStorage not used for sessions")
-
-        # Add deployment weaknesses
+        # Deployment weaknesses
         if deployment_result:
             if not deployment_result.get("hosted", {}).get("valid"):
                 weaknesses.append("No working deployment provided")
             if "DEPLOYMENT_NOT_ACCESSIBLE" in deployment_result.get("flags", []):
                 weaknesses.append("Deployment URL is not accessible")
 
-        return weaknesses[:5]  # Limit to 5
+        return weaknesses[:5]
 
     def _get_code_files(self, repo_path: str, max_files: int = 20) -> dict:
         """Get code files content for AI review"""

@@ -40,6 +40,15 @@ class Submission(Base):
         UUID(as_uuid=False), nullable=True, index=True
     )
 
+    # Batch reference (for batch submissions)
+    batch_id: Mapped[Optional[str]] = mapped_column(
+        UUID(as_uuid=False), nullable=True, index=True
+    )
+
+    # Custom rules and project structure (optional)
+    rules_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    project_structure_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
     # Status: pending, processing, completed, failed
     status: Mapped[str] = mapped_column(
         String(50), nullable=False, default="pending", index=True
@@ -109,6 +118,7 @@ class Submission(Base):
             "hosted_url": self.hosted_url,
             "video_url": self.video_url,
             "task_id": self.task_id,
+            "batch_id": self.batch_id,
             "status": self.status,
             "error_message": self.error_message,
             "overall_score": self.overall_score,
